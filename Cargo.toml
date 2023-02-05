@@ -2,6 +2,7 @@
 name = "xk-web-midair-haptic-driver-rust"
 version = "0.1.0"
 edition = "2021"
+links = "UltraleapHaptics"
 
 [dependencies]
 cxx = "1.0"
