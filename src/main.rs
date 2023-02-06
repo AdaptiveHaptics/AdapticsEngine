@@ -50,11 +50,14 @@ pub fn streaming_emission_callback(time_arr_ms: &CxxVector<f64>) -> Vec<EvalResu
 fn main() {
     println!("Hello, world!");
 
+    let (js_call_tx, js_call_rx) = std::sync::mpsc::sync_channel(0);
+    let (js_return_tx, js_return_rx) = std::sync::mpsc::sync_channel(0);
+
     let v8js_handle = thread::Builder::new()
         .name("v8js".to_string())
         .spawn(|| {
             println!("v8js thread started..");
-            jsrunner::initv8();
+            jsrunner::initv8(js_call_rx);
         })
         .unwrap();
 
