@@ -5,6 +5,7 @@ edition = "2021"
 links = "UltraleapHaptics"
 
 [dependencies]
+v8 = "0.62"
 cxx = "1.0"
 
 [build-dependencies]

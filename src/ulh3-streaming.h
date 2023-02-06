@@ -12,6 +12,7 @@ public:
 	~ULHStreamingController();
 	void pause_emitter();
 	void resume_emitter();
+	size_t getMissedCallbackIterations() const;
 private:
 	Library lib;
 	StreamingEmitter emitter;

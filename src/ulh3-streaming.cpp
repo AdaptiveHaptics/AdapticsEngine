@@ -10,16 +10,16 @@ void unwrap(result<void> res) {
 }
 
 
-//It's important to use double to prevent precision issues with long run times
-using MilliSeconds = std::chrono::duration<double, std::milli>;
+using JavascriptMilliseconds = std::chrono::duration<double, std::milli>;
 
 void ecallback_shim(const StreamingEmitter& emitter,
     OutputInterval& interval,
     const LocalTimePoint& submission_deadline
 ) {
+
 	std::vector<double> time_arr_ms;
     for (auto& sample : interval) {
-		MilliSeconds msd = sample.time_since_epoch();
+		JavascriptMilliseconds msd = sample.time_since_epoch(); //It's important to use double to prevent precision issues with long run times
         auto ms = msd.count();
 		time_arr_ms.push_back(ms);
     }
@@ -40,6 +40,9 @@ void ecallback_shim(const StreamingEmitter& emitter,
 
 		i++;
 	}
+
+	auto done_time = LocalTimeClock::now();
+	auto time_remaining = std::chrono::duration_cast<JavascriptMilliseconds>(submission_deadline - done_time).count();
 }
 
 
@@ -56,15 +59,20 @@ ULHStreamingController::ULHStreamingController(float callback_rate) : lib(), emi
 }
 
 void ULHStreamingController::pause_emitter() {
-	emitter.pause();
+	unwrap(emitter.pause());
 }
 void ULHStreamingController::resume_emitter() {
-	emitter.resume();
+	unwrap(emitter.resume());
+}
+size_t ULHStreamingController::getMissedCallbackIterations() const {
+	auto v = emitter.getMissedCallbackIterations();
+	throw_if_error(v);
+	return v.value();
 }
 
 ULHStreamingController::~ULHStreamingController() {
 	unwrap(emitter.stop());
-	unwrap(lib.disconnect());
+	unwrap(lib.disconnect()); // unnecessary
 }
 
 
