@@ -57,7 +57,7 @@ fn main() {
         .name("v8js".to_string())
         .spawn(|| {
             println!("v8js thread started..");
-            jsrunner::initv8(js_call_rx);
+            jsrunner::initv8(js_call_rx, js_return_tx);
         })
         .unwrap();
 
