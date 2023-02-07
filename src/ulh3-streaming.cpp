@@ -43,6 +43,9 @@ void ecallback_shim(const StreamingEmitter& emitter,
 
 	auto done_time = LocalTimeClock::now();
 	auto time_remaining = std::chrono::duration_cast<JavascriptMilliseconds>(submission_deadline - done_time).count();
+	if (time_remaining < 0) {
+		std::cout << "WARNING: missed deadline by " << -time_remaining << "ms" << std::endl;
+	}
 }
 
 

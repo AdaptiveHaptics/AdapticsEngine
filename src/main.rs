@@ -1,16 +1,20 @@
 use std::thread;
 use cxx::CxxVector;
+use serde::Deserialize;
 
 mod jsrunner;
+mod network;
 
 
 #[cxx::bridge]
 mod ffi {
+    #[derive(Deserialize, Debug)]
     struct EvalCoords {
         x: f64,
         y: f64,
         z: f64,
     }
+    #[derive(Deserialize, Debug)]
     struct EvalResults {
         coords: EvalCoords,
         intensity: f64,
@@ -38,6 +42,8 @@ mod ffi {
 // }
 
 use ffi::*;
+pub use ffi::EvalCoords;
+pub use ffi::EvalResults;
 
 /// I am not sure about any threading/concurrency issues
 pub fn streaming_emission_callback(time_arr_ms: &CxxVector<f64>) -> Vec<EvalResults> {
@@ -61,6 +67,21 @@ fn main() {
         })
         .unwrap();
 
+
+    let net_handle_opt = if false {
+        todo!();
+        // let (net_incoming_tx, net_incoming_rx) = std::sync::mpsc::sync_channel(0);
+        // let (net_outgoing_tx, net_outgoing_rx) = std::sync::mpsc::sync_channel(0);
+        let thread = thread::Builder::new()
+            .name("net".to_string())
+            .spawn(|| {
+                println!("net thread started..");
+                network::start_ws_server();
+            })
+            .unwrap();
+        Some(thread)
+    } else { None };
+
     if false {
         let mut ulh_streaming_controller = new_ulh_streaming_controller(500.0).unwrap();
         ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
@@ -70,4 +91,5 @@ fn main() {
 
 
     v8js_handle.join().unwrap();
+    net_handle_opt.map(|h| h.join().unwrap());
 }
