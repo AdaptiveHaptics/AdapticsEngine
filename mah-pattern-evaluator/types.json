@@ -35,7 +35,7 @@
     }
   },
   "definitions": {
-    "BrushAndTransition": {
+    "BrushWithTransition": {
       "type": "object",
       "required": [
         "brush",
@@ -50,7 +50,7 @@
         }
       }
     },
-    "CoordsAndTransition": {
+    "CoordsWithTransition": {
       "type": "object",
       "required": [
         "coords",
@@ -65,7 +65,7 @@
         }
       }
     },
-    "IntensityAndTransition": {
+    "IntensityWithTransition": {
       "type": "object",
       "required": [
         "intensity",
@@ -251,7 +251,7 @@
             "brush": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/BrushAndTransition"
+                  "$ref": "#/definitions/BrushWithTransition"
                 },
                 {
                   "type": "null"
@@ -259,12 +259,12 @@
               ]
             },
             "coords": {
-              "$ref": "#/definitions/CoordsAndTransition"
+              "$ref": "#/definitions/CoordsWithTransition"
             },
             "intensity": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/IntensityAndTransition"
+                  "$ref": "#/definitions/IntensityWithTransition"
                 },
                 {
                   "type": "null"
@@ -294,7 +294,7 @@
             "brush": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/BrushAndTransition"
+                  "$ref": "#/definitions/BrushWithTransition"
                 },
                 {
                   "type": "null"
@@ -304,7 +304,7 @@
             "intensity": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/IntensityAndTransition"
+                  "$ref": "#/definitions/IntensityWithTransition"
                 },
                 {
                   "type": "null"

@@ -3,16 +3,22 @@ use std::{collections::HashMap, mem::Discriminant};
 
 use shared_types::*;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct PatternEvaluator {
     mah_animation: MidAirHapticsAnimationFileFormat,
 }
+
+
 #[derive(Debug, Clone)]
 pub struct PatternEvaluatorParameters {
     pub time: f64,
     pub user_parameters: HashMap<String, f64>,
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
     pub fn new(mah_animation: MidAirHapticsAnimationFileFormat) -> Self {
         let mut mah_animation = mah_animation;
@@ -21,6 +27,12 @@ impl PatternEvaluator {
         Self {
             mah_animation,
         }
+    }
+    pub fn new_from_json_string(mah_animation_json: &str) -> Self {
+        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json).unwrap();
+        mah_animation.keyframes.sort_by(|a, b| a.time().total_cmp(b.time()));
+
+        Self { mah_animation }
     }
 
     fn get_kf_config_type(&self, t: f64, prev: bool) -> MAHKeyframeConfig {
@@ -88,7 +100,7 @@ impl PatternEvaluator {
         fn get_intensity_value(intensity: &MAHIntensity) -> f64 {
             match &intensity {
                 MAHIntensity::Constant { value } => *value,
-                MAHIntensity::Random { min, max } => rand::random::<f64>() * (*max - *min) + *min,
+                MAHIntensity::Random { min, max } => rand::random::<f64>() * (max - min) + min,
             }
         }
 
@@ -389,5 +401,81 @@ impl std::ops::Add<MAHCoords> for MAHCoords {
 
     fn add(self, rhs: MAHCoords) -> Self::Output {
         &self + &rhs
+    }
+}
+
+impl MAHKeyframe {
+    pub fn time(&self) -> &f64 {
+        match self {
+            MAHKeyframe::Standard(kf) => &kf.time,
+            MAHKeyframe::Pause(kf) => &kf.time,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
+    use std::time::Instant;
+
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::*;
+
+    use crate::*;
+
+    #[test]
+    fn bench() {
+        let warmup_iterations = 50;
+        let mut max_time = Duration::default();
+        let pattern_json_string_raw = "{\"$DATA_FORMAT\":\"MidAirHapticsAnimationFileFormat\",\"$REVISION\":\"0.0.4-alpha.1\",\"name\":\"test\",\"projection\":\"plane\",\"update_rate\":1,\"keyframes\":[{\"time\":0,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-60,\"y\":-40,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":500,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":10}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":5,\"y\":65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":1000,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2250,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-5,\"y\":-65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":2350,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2425,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":1,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2500,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":3750,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":360}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":50,\"y\":0,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}}]}";
+        let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
+        for o in 0..3000 {
+            if (o == warmup_iterations) {
+                println!("Warmup done, starting benchmark..");
+                max_time = Duration::default();
+            }
+            let now = Instant::now();
+
+            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
+            for i in 0..20 {
+                let time = f64::from(i) * 0.05;
+                pep.time = time;
+                let eval_result = pe.eval_path_at_anim_local_time(&pep);
+                if eval_result.coords.z != 0.0 {
+                    println!("{:?}", eval_result);
+                }
+            }
+
+            let elapsed = now.elapsed();
+            if (elapsed > max_time) {
+                max_time = elapsed;
+            }
+            println!("elapsed: {:.2?}", elapsed);
+        }
+        println!("Max elapsed: {:.2?}", max_time);
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    #[test]
+    fn test() {
+        let warmup_iterations = 5;
+        let pattern_json_string_raw = "{\"$DATA_FORMAT\":\"MidAirHapticsAnimationFileFormat\",\"$REVISION\":\"0.0.4-alpha.1\",\"name\":\"test\",\"projection\":\"plane\",\"update_rate\":1,\"keyframes\":[{\"time\":0,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-60,\"y\":-40,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":500,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":10}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":5,\"y\":65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":1000,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2250,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-5,\"y\":-65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":2350,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2425,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":1,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2500,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":3750,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":360}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":50,\"y\":0,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}}]}";
+        let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
+        for o in 0..3000 {
+            if (o == warmup_iterations) {
+                println!("Warmup done, starting benchmark..");
+            }
+
+            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
+            for i in 0..20 {
+                let time = f64::from(i) * 0.05;
+                pep.time = time;
+                let eval_result = pe.eval_path_at_anim_local_time(&pep);
+                if eval_result.coords.z != 0.0 {
+                    println!("{:?}", eval_result);
+                }
+            }
+        }
     }
 }

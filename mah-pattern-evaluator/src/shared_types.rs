@@ -1,12 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MidAirHapticsAnimationFileFormat {
     #[serde(rename = "$DATA_FORMAT")]
-    pub data_format: &'static str,
+    pub data_format: String,
     #[serde(rename = "$REVISION")]
-    pub revision: &'static str,
+    pub revision: String,
 
     pub name: String,
 
@@ -45,6 +49,7 @@ pub struct MAHCoords {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(tag = "name", content = "params")]
+#[serde(rename_all = "snake_case")]
 pub enum MAHBrush {
     Circle { radius: f64 },
     Line { length: f64, thickness: f64, rotation: f64 },
@@ -52,6 +57,7 @@ pub enum MAHBrush {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(tag = "name", content = "params")]
+#[serde(rename_all = "snake_case")]
 pub enum MAHIntensity {
     Constant { value: f64 },
     Random { min: f64, max: f64 },
@@ -59,6 +65,7 @@ pub enum MAHIntensity {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(tag = "name", content = "params")]
+#[serde(rename_all = "snake_case")]
 pub enum MAHTransition {
     Linear {},
     Step {},
@@ -110,13 +117,4 @@ pub struct MAHKeyframePause {
 pub enum MAHKeyframe {
     Standard(MAHKeyframeStandard),
     Pause(MAHKeyframePause),
-}
-
-impl MAHKeyframe {
-    pub fn time(&self) -> &f64 {
-        match self {
-            MAHKeyframe::Standard(kf) => &kf.time,
-            MAHKeyframe::Pause(kf) => &kf.time,
-        }
-    }
 }
