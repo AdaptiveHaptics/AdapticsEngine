@@ -9,11 +9,11 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "lib"]
 name = "pattern_evaluator"
-path = "src/lib.rs"
+path = "src/pattern_evaluator.rs"
 
 [[bin]]
 name = "create_types_json_schema"
-path = "src/main.rs"
+path = "src/create_types_json_schema.rs"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
