@@ -1,5 +1,11 @@
 set -ex
 
+
+if ! grep -q 'name = "mah-pattern-evaluator"' Cargo.toml; then
+	echo "This script must be run from the "subroot" for the mah-pattern-evaluator crate"
+	exit 1
+fi
+
 pkg_dir="pkg"
 rm -rf "$pkg_dir"
 mkdir "$pkg_dir"
