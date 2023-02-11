@@ -53,6 +53,7 @@ pub type MAHTime = f64;
 /// x and y are used for the xy coordinate system in the 2d designer.
 /// z is intended to be orthogonal to the phased array
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+// #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 // #[ts(export)]
 pub struct MAHCoords {
     /// in millimeters, [-100, 100]

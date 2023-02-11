@@ -2,6 +2,7 @@ mod shared_types;
 use std::{collections::HashMap, mem::Discriminant};
 
 use serde::{Deserialize, Serialize};
+use schemars::JsonSchema;
 use shared_types::*;
 
 #[cfg(target_arch = "wasm32")]
@@ -13,7 +14,7 @@ pub struct PatternEvaluator {
 }
 
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PatternEvaluatorParameters {
     pub time: f64,
     pub user_parameters: HashMap<String, f64>,
@@ -333,13 +334,15 @@ impl PatternEvaluator {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time))]
     pub fn eval_brush_at_anim_local_time_json(&self, p: &str) -> String {
-        serde_json::to_string(&self.eval_brush_at_anim_local_time(&serde_json::from_str(p).unwrap())).unwrap()
+        serde_json::to_string::<BrushAtAnimLocalTime>(&self.eval_brush_at_anim_local_time(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap())).unwrap()
     }
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time_for_max_t))]
     pub fn eval_brush_at_anim_local_time_for_max_t_json(&self, p: &str) -> String {
-        serde_json::to_string(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str(p).unwrap())).unwrap()
+        serde_json::to_string::<Vec<BrushAtAnimLocalTime>>(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap())).unwrap()
     }
 }
+
+pub type PatternEvalWasmPublicTypes = (MidAirHapticsAnimationFileFormat, PatternEvaluatorParameters, BrushAtAnimLocalTime, Vec<BrushAtAnimLocalTime>);
 
 
 #[derive(Debug, Clone)]
@@ -349,7 +352,7 @@ struct PrimitiveWithTransitionAtTime<'a, T> {
     pwt: &'a T,
 }
 #[derive(Debug, Clone, Default)]
-pub struct MAHKeyframeConfig<'a> {
+struct MAHKeyframeConfig<'a> {
     coords: Option<PrimitiveWithTransitionAtTime<'a, CoordsWithTransition>>,
     brush: Option<PrimitiveWithTransitionAtTime<'a, BrushWithTransition>>,
     intensity: Option<PrimitiveWithTransitionAtTime<'a, IntensityWithTransition>>,
@@ -362,7 +365,7 @@ pub struct PathAtAnimLocalTime {
     pub intensity: f64,
     brush: BrushEvalParams,
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BrushAtAnimLocalTime {
     pub coords: MAHCoords,
     pub intensity: f64,

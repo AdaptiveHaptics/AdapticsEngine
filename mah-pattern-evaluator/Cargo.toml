@@ -7,7 +7,7 @@ edition = "2021"
 # default = ["rand/wasm-bindgen"]
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 name = "pattern_evaluator"
 path = "src/lib.rs"
 
