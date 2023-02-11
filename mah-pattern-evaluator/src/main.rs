@@ -7,6 +7,8 @@ fn main() {
 	let schema = schema_for!(shared_types::MidAirHapticsAnimationFileFormat);
 	let schema_str = serde_json::to_string_pretty(&schema).unwrap();
 	println!("{}", schema_str);
-	fs::write("types.json", schema_str).unwrap();
-	println!("json schema saved to types.json");
+
+	let filename = std::env::args().nth(1).unwrap();
+	fs::write(&filename, schema_str).unwrap();
+	println!("json schema saved to {}", filename);
 }

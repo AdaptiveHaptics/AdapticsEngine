@@ -30,6 +30,13 @@ impl PatternEvaluator {
         }
     }
 
+    pub fn new_from_json_string(mah_animation_json: &str) -> Self {
+        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json).unwrap();
+        mah_animation.keyframes.sort_by(|a, b| a.time().total_cmp(b.time()));
+
+        Self { mah_animation }
+    }
+
     fn get_kf_config_type(&self, t: f64, prev: bool) -> MAHKeyframeConfig {
         let mut kfc = MAHKeyframeConfig::default();
         macro_rules! update_kfc {
@@ -319,29 +326,18 @@ impl PatternEvaluator {
 #[cfg(target_arch = "wasm32")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
-    pub fn new_from_json_string(mah_animation_json: &str) -> Self {
-        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json).unwrap();
-        mah_animation.keyframes.sort_by(|a, b| a.time().total_cmp(b.time()));
-
-        Self { mah_animation }
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
+    pub fn new_json(mah_animation_json: &str) -> Self {
+        Self::new_from_json_string(mah_animation_json)
     }
-
-    pub fn eval_path_at_anim_local_time_js(&self, p: &PatternEvaluatorParameters) -> PathAtAnimLocalTime {
-        let prev_kfc = self.get_prev_kf_config(p.time);
-        let next_kfc = self.get_next_kf_config(p.time);
-
-        let coords = Self::eval_coords(&p, &prev_kfc, &next_kfc);
-        let intensity = Self::eval_intensity(&p, &prev_kfc, &next_kfc);
-        let brush = Self::eval_brush_hapev2(&p, &prev_kfc, &next_kfc);
-
-        PathAtAnimLocalTime { coords, intensity, brush }
-    }
-
-
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time))]
     pub fn eval_brush_at_anim_local_time_json(&self, p: &str) -> String {
         serde_json::to_string(&self.eval_brush_at_anim_local_time(&serde_json::from_str(p).unwrap())).unwrap()
+    }
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time_for_max_t))]
+    pub fn eval_brush_at_anim_local_time_for_max_t_json(&self, p: &str) -> String {
+        serde_json::to_string(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str(p).unwrap())).unwrap()
     }
 }
 
@@ -462,7 +458,7 @@ mod test {
             let now = Instant::now();
 
             let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
-            for i in 0..20 {
+            for i in 0..200 {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
                 let eval_result = pe.eval_path_at_anim_local_time(&pep);
