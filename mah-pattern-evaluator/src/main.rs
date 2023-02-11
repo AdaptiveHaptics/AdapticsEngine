@@ -1,12 +1,23 @@
 use std::fs;
 
 use schemars::schema_for;
+// use ts_rs::TS;
 mod shared_types;
+use shared_types::*;
 
 fn main() {
-	let schema = schema_for!(shared_types::MidAirHapticsAnimationFileFormat);
-	let schema_str = serde_json::to_string_pretty(&schema).unwrap();
-	println!("{}", schema_str);
+
+	let schema_str = { // schemars
+		let schema = schema_for!(MidAirHapticsAnimationFileFormat);
+		let schema_str = serde_json::to_string_pretty(&schema).unwrap();
+		println!("{}", schema_str);
+		schema_str
+	};
+	// else { // ts_rs
+	// 	let schema_str = MidAirHapticsAnimationFileFormat::export_to_string().unwrap(); #only generates one type (not recursive)
+	// 	println!("{}", schema_str);
+	// 	schema_str
+	// };
 
 	let filename = std::env::args().nth(1).unwrap();
 	fs::write(&filename, schema_str).unwrap();
