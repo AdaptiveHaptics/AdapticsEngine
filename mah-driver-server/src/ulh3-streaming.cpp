@@ -1,6 +1,7 @@
 #include <chrono>
 
 #include "ulh3-streaming.h"
+
 #include "xk-web-midair-haptic-driver-rust/src/main.rs.h"
 
 
@@ -12,7 +13,9 @@ void unwrap(result<void> res) {
 
 using JavascriptMilliseconds = std::chrono::duration<double, std::milli>;
 
-void ecallback_shim(const StreamingEmitter& emitter,
+void ecallback_shim(
+	rust_ecallback cb_func,
+	const StreamingEmitter& emitter,
     OutputInterval& interval,
     const LocalTimePoint& submission_deadline
 ) {
@@ -23,12 +26,13 @@ void ecallback_shim(const StreamingEmitter& emitter,
         auto ms = msd.count();
 		time_arr_ms.push_back(ms);
     }
+	std::vector<EvalResult> eval_results_arr(time_arr_ms.size());
 
-	auto result_vec = streaming_emission_callback(time_arr_ms);
+	cb_func(time_arr_ms, eval_results_arr);
 
 	int i = 0;
 	for (auto& sample : interval) {
-		auto eval_result = result_vec.at(i);
+		auto eval_result = eval_results_arr.at(i);
 		Vector3 p;
         p.x = static_cast<float>(eval_result.coords.x);
         p.y = static_cast<float>(eval_result.coords.y);
@@ -49,13 +53,15 @@ void ecallback_shim(const StreamingEmitter& emitter,
 }
 
 
-ULHStreamingController::ULHStreamingController(float callback_rate) : lib(), emitter((unwrap(lib.connect()), lib)) {
+ULHStreamingController::ULHStreamingController(float callback_rate, rust_ecallback cb_func) : lib(), emitter((unwrap(lib.connect()), lib)) {
     auto device_result = lib.findDevice(DeviceFeatures::StreamingHaptics);
     throw_if_error(device_result);
 
 	unwrap(emitter.addDevice(device_result.value()));
 	unwrap(emitter.setControlPointCount(1, AdjustRate::All));
-	unwrap(emitter.setEmissionCallback(&ecallback_shim));
+	// std::function<void(const StreamingEmitter&, OutputInterval&, const LocalTimePoint&)>
+	EmissionCallbackFunction callback = std::bind(ecallback_shim, cb_func, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+	unwrap(emitter.setEmissionCallback(std::move(callback)));
 	unwrap(emitter.setCallbackRate(callback_rate));
 	emitter.start();
 	emitter.pause();
@@ -79,7 +85,6 @@ ULHStreamingController::~ULHStreamingController() {
 }
 
 
-
-std::unique_ptr<ULHStreamingController> new_ulh_streaming_controller(float callback_rate) {
-	return std::make_unique<ULHStreamingController>(callback_rate);
+std::unique_ptr<ULHStreamingController> new_ulh_streaming_controller(float callback_rate, rust_ecallback cb_func) {
+	return std::make_unique<ULHStreamingController>(callback_rate, cb_func);
 }

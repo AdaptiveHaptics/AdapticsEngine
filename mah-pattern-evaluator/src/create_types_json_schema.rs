@@ -10,7 +10,7 @@ use pattern_evaluator;
 fn main() {
 
 	let schema_str = { // schemars
-		let schema = schema_for!(MidAirHapticsAnimationFileFormat);
+		// let schema = schema_for!(MidAirHapticsAnimationFileFormat);
 		let schema = schema_for!(pattern_evaluator::PatternEvalWasmPublicTypes);
 		let schema_str = serde_json::to_string_pretty(&schema).unwrap();
 		println!("{}", schema_str);

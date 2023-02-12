@@ -1,10 +1,15 @@
 use std::collections::HashMap;
+use std::pin::Pin;
+use std::sync::Mutex;
 use std::thread;
 use cxx::CxxVector;
-use pattern_evaluator;
+use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime};
 use crossbeam_channel;
 
 mod network;
+
+const ENABLE_ULH_STREAMING: bool = false;
+const ENABLE_NETWORKING: bool = true;
 
 
 #[cxx::bridge]
@@ -16,13 +21,9 @@ mod ffi {
         z: f64,
     }
     #[derive(Debug)]
-    struct EvalResults {
+    struct EvalResult {
         coords: EvalCoords,
         intensity: f64,
-    }
-
-    extern "Rust" {
-        fn streaming_emission_callback(time_arr_ms: &CxxVector<f64>) -> Vec<EvalResults>;
     }
 
     unsafe extern "C++" {
@@ -33,43 +34,41 @@ mod ffi {
         fn pause_emitter(self: Pin<&mut ULHStreamingController>) -> Result<()>;
         fn resume_emitter(self: Pin<&mut ULHStreamingController>) -> Result<()>;
         fn getMissedCallbackIterations(&self) -> Result<usize>;
-        fn new_ulh_streaming_controller(callback_rate: f32) -> Result<UniquePtr<ULHStreamingController>>;
+        fn new_ulh_streaming_controller(callback_rate: f32, cb_func: fn(&CxxVector<f64>, Pin<&mut CxxVector<EvalResult>>)) -> Result<UniquePtr<ULHStreamingController>>;
+    }
+}
+use ffi::*;
+pub use ffi::EvalCoords;
+pub use ffi::EvalResult;
+
+impl From<BrushAtAnimLocalTime> for EvalResult {
+    fn from(be: BrushAtAnimLocalTime) -> EvalResult {
+        EvalResult {
+            coords: EvalCoords {
+                x: be.coords.x / 1000.0,
+                y: be.coords.y / 1000.0,
+                // z: be.coords.z / 1000.0,
+                z: 0.1,
+            },
+            intensity: be.intensity,
+        }
     }
 }
 
-// unsafe impl ExternType for ffi::ULHStreamingController {
-//     type Id = type_id!("ffi::ULHStreamingController");
-//     type Kind = cxx::kind::Opaque;
-// }
-
-use ffi::*;
-pub use ffi::EvalCoords;
-pub use ffi::EvalResults;
-use pattern_evaluator::PatternEvaluator;
-use pattern_evaluator::PatternEvaluatorParameters;
-
 type MilSec = f64;
 
-/// I am not sure about any threading/concurrency issues
-pub fn streaming_emission_callback(time_arr_ms: &CxxVector<MilSec>) -> Vec<EvalResults> {
-    todo!();
-    let v = time_arr_ms.iter().map(|t| EvalResults{ coords: EvalCoords { x: 0.0, y: 0.0, z: 0.0 }, intensity: 0.0}).collect();
-    return v;
-}
 
-
-enum PatternEvalCall {
-    UpdatePattern{ mah_animation_json: String },
+pub enum PatternEvalCall {
+    UpdatePattern{ pattern_json: String },
     UpdatePlaystart{ playstart: MilSec, playstart_offset: MilSec },
-    //UpdateParameters(String), TODO
+    UpdateParameters{ evaluator_params: PatternEvaluatorParameters },
     EvalBatch{ time_arr_ms: Vec<MilSec>},
 }
 
 fn main() {
-    println!("Hello, world!");
-
     let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::unbounded();
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded(0);
+    let (network_send_tx, network_send_rx) = crossbeam_channel::unbounded();
 
     let pattern_eval_handle = thread::Builder::new()
         .name("pattern-eval".to_string())
@@ -92,8 +91,11 @@ fn main() {
             loop {
                 let call = patteval_call_rx.recv().unwrap();
                 match call {
-                    PatternEvalCall::UpdatePattern{ mah_animation_json } => {
-                        pattern_eval = PatternEvaluator::new_from_json_string(&mah_animation_json);
+                    PatternEvalCall::UpdatePattern{ pattern_json } => {
+                        pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json);
+                    },
+                    PatternEvalCall::UpdateParameters{ evaluator_params } => {
+                        parameters = evaluator_params;
                     },
                     PatternEvalCall::UpdatePlaystart{ playstart, playstart_offset } => {
                         if playstart == 0.0 {
@@ -118,12 +120,31 @@ fn main() {
         })
         .unwrap();
 
-    let ulh_streaming_handle_opt = if false {
+    let ulh_streaming_handle_opt = if ENABLE_ULH_STREAMING {
+        let patteval_call_tx = patteval_call_tx.clone();
         Some(thread::Builder::new()
             .name("ulh-streaming".to_string())
-            .spawn(|| {
+            .spawn(move || {
                 println!("ulhaptics streaming thread started..");
-                let mut ulh_streaming_controller = new_ulh_streaming_controller(500.0).unwrap();
+
+                static STATIC_ECALLBACK_MUTEX: Mutex<Option<Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>>> = Mutex::new(None);
+
+                fn static_streaming_emission_callback(time_arr_ms: &CxxVector<MilSec>, eval_results_arr: Pin<&mut CxxVector<EvalResult>>) {
+                    if let Some(f) = STATIC_ECALLBACK_MUTEX.lock().unwrap().as_ref() {
+                        f(time_arr_ms, eval_results_arr);
+                    }
+                }
+                let streaming_emission_callback = move |time_arr_ms: &CxxVector<MilSec>, eval_results_arr: Pin<&mut CxxVector<EvalResult>> | {
+                    patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_ms: time_arr_ms.iter().copied().collect() }).unwrap();
+                    let eval_arr = patteval_return_rx.recv().unwrap();
+                    let eval_results_arr = eval_results_arr.as_mut_slice();
+                    for (i,eval) in eval_arr.into_iter().enumerate() {
+                        eval_results_arr[i] = eval.into();
+                    }
+                };
+                STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback));
+
+                let mut ulh_streaming_controller = new_ulh_streaming_controller(500.0, static_streaming_emission_callback).unwrap();
                 ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
                 ulh_streaming_controller.pin_mut().pause_emitter().unwrap();
                 println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
@@ -132,15 +153,12 @@ fn main() {
     } else { None };
 
 
-    let net_handle_opt = if false {
-        todo!();
-        // let (net_incoming_tx, net_incoming_rx) = std::sync::mpsc::sync_channel(0);
-        // let (net_outgoing_tx, net_outgoing_rx) = std::sync::mpsc::sync_channel(0);
+    let net_handle_opt = if ENABLE_NETWORKING {
         let thread = thread::Builder::new()
             .name("net".to_string())
             .spawn(|| {
                 println!("net thread started..");
-                network::start_ws_server();
+                network::start_ws_server(patteval_call_tx, network_send_rx);
             })
             .unwrap();
         Some(thread)
