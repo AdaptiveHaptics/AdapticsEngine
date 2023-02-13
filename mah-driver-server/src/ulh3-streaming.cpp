@@ -88,3 +88,9 @@ ULHStreamingController::~ULHStreamingController() {
 std::unique_ptr<ULHStreamingController> new_ulh_streaming_controller(float callback_rate, rust_ecallback cb_func) {
 	return std::make_unique<ULHStreamingController>(callback_rate, cb_func);
 }
+
+
+double get_current_chrono_time() {
+	LocalTimePoint tp = LocalTimeClock::now();
+	return JavascriptMilliseconds(tp.time_since_epoch()).count();
+}

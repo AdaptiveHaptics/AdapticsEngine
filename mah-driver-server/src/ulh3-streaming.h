@@ -27,4 +27,5 @@ private:
 
 std::unique_ptr<ULHStreamingController> new_ulh_streaming_controller(float callback_rate, rust_ecallback cb_func);
 
+double get_current_chrono_time();
 
