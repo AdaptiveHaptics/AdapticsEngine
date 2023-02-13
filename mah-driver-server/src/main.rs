@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::{Sub, Add};
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::thread;
@@ -8,6 +9,7 @@ use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAni
 use crossbeam_channel;
 
 mod network;
+use network::PEWSServerMessage;
 
 
 const CALLBACK_RATE: f64 = 500.0;
@@ -62,12 +64,15 @@ impl From<BrushAtAnimLocalTime> for EvalResult {
 
 type MilSec = f64;
 
-
 pub enum PatternEvalCall {
     UpdatePattern{ pattern_json: String },
     UpdatePlaystart{ playstart: MilSec, playstart_offset: MilSec },
     UpdateParameters{ evaluator_params: PatternEvaluatorParameters },
-    EvalBatch{ time_arr_ms: Vec<Instant>},
+    EvalBatch{ time_arr_instants: Vec<Instant>},
+}
+
+fn js_milliseconds_to_duration(ms: f64) -> Duration {
+    Duration::from_nanos((ms * 1e6) as u64)
 }
 
 fn main() {
@@ -107,17 +112,18 @@ fn main() {
                             pattern_playstart = None;
                         } else {
                             // get current time in milliseconds as f64
-                            pattern_playstart = Some(Instant::now() + Duration::from_nanos((playstart_offset * 1e6) as u64));
+                            pattern_playstart = Some(Instant::now().add(js_milliseconds_to_duration(playstart_offset)));
                         }
                     },
-                    PatternEvalCall::EvalBatch{ time_arr_ms } => {
-                        let eval_arr: Vec<_> = time_arr_ms.iter().map(|time| {
-                            let time = if let Some(playstart) = pattern_playstart { time - playstart } else { 0.0 };
+                    PatternEvalCall::EvalBatch{ time_arr_instants } => {
+                        let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
+                            let time = if let Some(playstart) = pattern_playstart { time.sub(playstart).as_nanos() as f64 / 1e6 } else { 0.0 };
                             parameters.time = time;
                             let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters);
                             eval
                         }).collect();
                         patteval_return_tx.send(eval_arr).unwrap();
+                        network_send_tx.send(PEWSServerMessage::PlaybackUpdate(eval_arr)).unwrap();
                     },
                 }
             }
@@ -133,14 +139,21 @@ fn main() {
 
                 static STATIC_ECALLBACK_MUTEX: Mutex<Option<Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>>> = Mutex::new(None);
 
+                // sync epochs are used to convert from chrono time to Instant
+                // they both appear to use the same monotonic clock source and unix epoch, but i'd like to be agnostic of that assumption
+                // I am assuming that these be called at the nearly the same time, in either order
+                let sync_epoch_instant = Instant::now();
+                let sync_epoch_chrono_ms = get_current_chrono_time();
+
                 fn static_streaming_emission_callback(time_arr_ms: &CxxVector<MilSec>, eval_results_arr: Pin<&mut CxxVector<EvalResult>>) {
                     if let Some(f) = STATIC_ECALLBACK_MUTEX.lock().unwrap().as_ref() {
                         f(time_arr_ms, eval_results_arr);
                     }
                 }
                 let streaming_emission_callback = move |time_arr_ms: &CxxVector<MilSec>, eval_results_arr: Pin<&mut CxxVector<EvalResult>> | {
-                    "TODO: offset time_arr_ms by get_current_chrono_time to get instant or something like that"
-                    patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_ms: time_arr_ms.iter().copied().collect() }).unwrap();
+                    patteval_call_tx.send(PatternEvalCall::EvalBatch{
+                        time_arr_instants: time_arr_ms.iter().map(|ms| sync_epoch_instant.add(js_milliseconds_to_duration(ms-sync_epoch_chrono_ms))).collect() // convert from chrono time to Instant using epoch
+                    }).unwrap();
                     let eval_arr = patteval_return_rx.recv().unwrap();
                     let eval_results_arr = eval_results_arr.as_mut_slice();
                     for (i,eval) in eval_arr.into_iter().enumerate() {
@@ -149,7 +162,7 @@ fn main() {
                 };
                 STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback));
 
-                let mut ulh_streaming_controller = new_ulh_streaming_controller(CALLBACK_RATE, static_streaming_emission_callback).unwrap();
+                let mut ulh_streaming_controller = new_ulh_streaming_controller(CALLBACK_RATE as f32, static_streaming_emission_callback).unwrap();
                 ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
                 ulh_streaming_controller.pin_mut().pause_emitter().unwrap();
                 println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
@@ -163,15 +176,24 @@ fn main() {
             .spawn(move || {
                 println!("mock streaming thread starting...");
 
-                let device_update_rate = 20000; //20khz
-                let start_time = std::time::Instant::now();
-                let tick_rx = crossbeam_channel::tick(std::time::Duration::from_secs_f64(1.0/CALLBACK_RATE));
+                let device_update_rate = 20000.0; //20khz
+                // let start_time = Instant::now();
+                let tick_dur = Duration::from_secs_f64(1.0/CALLBACK_RATE);
+                let tick_rx = crossbeam_channel::tick(tick_dur);
+                let deadline_offset = tick_dur * 1;
+
                 loop {
                     tick_rx.recv().unwrap();
-                    let dtime = start_time.elapsed().as_millis();
-                    patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_ms: vec![time] }).unwrap();
-                    let eval_arr = patteval_return_rx.recv().unwrap();
-                    println!("eval_arr: {:?}", eval_arr);
+                    let curr_time = Instant::now();
+                    let deadline_time = curr_time + deadline_offset;
+                    let num_instants = (device_update_rate / CALLBACK_RATE) as u32;
+                    let time_arr_instants = (0..num_instants).map(|i| deadline_time + tick_dur*i).collect();
+                    patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).unwrap();
+                    let _eval_arr = patteval_return_rx.recv().unwrap();
+                    // println!("remaining time {:?}", deadline_time-Instant::now());
+                    if Instant::now() > deadline_time {
+                        eprintln!("missed deadline");
+                    }
                 }
 
             })
