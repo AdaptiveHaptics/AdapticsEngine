@@ -225,16 +225,21 @@ fn main() {
                 let ecallback_tick_dur = Duration::from_secs_f64(1.0/CALLBACK_RATE);
                 let ecallback_tick_rx = crossbeam_channel::tick(ecallback_tick_dur);
                 let deadline_offset = ecallback_tick_dur * 1;
+                let mut last_time = Instant::now();
 
                 assert!(device_tick_dur.as_secs_f64() > 0.0, "device_tick_dur must be > 0");
                 loop {
                     ecallback_tick_rx.recv().unwrap();
 
                     let curr_time = Instant::now();
+                    "SOMETHING IS WRONG HERE, instead of jumping from 833.529 to 833.579 it jumps from 833.529 to 846.551. and then later from 848.5799 to 861.4906 where is this 13 ms coming from?";
+                    "it can be seen: in this print"
+                    println!("elapsed: {:?}", curr_time - last_time);
+                    last_time = curr_time;
                     let deadline_time = curr_time + deadline_offset;
 
                     let mut time_arr_instants = Vec::with_capacity((DEVICE_UPDATE_RATE as f64 / CALLBACK_RATE) as usize + 2);
-                    let mut future_device_tick_instant = deadline_time.clone();
+                    let mut future_device_tick_instant = deadline_time;
                     while future_device_tick_instant < (deadline_time + ecallback_tick_dur) {
                         time_arr_instants.push(future_device_tick_instant);
                         future_device_tick_instant += device_tick_dur;
