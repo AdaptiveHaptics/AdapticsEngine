@@ -7,9 +7,11 @@ use std::time::{Duration, Instant};
 use cxx::CxxVector;
 use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime};
 use crossbeam_channel;
+use tokio::sync::broadcast;
 
-mod network;
-use network::PEWSServerMessage;
+// mod network;
+// use network::PEWSServerMessage;
+mod websocket;
 
 
 const CALLBACK_RATE: f64 = 500.0;
@@ -72,13 +74,21 @@ pub enum PatternEvalCall {
 }
 
 fn js_milliseconds_to_duration(ms: f64) -> Duration {
+    if ms.is_sign_negative() { panic!("js_milliseconds_to_duration: ms is negative"); }
     Duration::from_nanos((ms * 1e6) as u64)
+}
+fn instant_add_js_milliseconds(instant: Instant, ms: f64) -> Instant {
+    if ms.is_sign_negative() {
+        instant.sub(js_milliseconds_to_duration(-ms))
+    } else {
+        instant.add(js_milliseconds_to_duration(ms))
+    }
 }
 
 fn main() {
     let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::unbounded();
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded(0);
-    let (network_send_tx, network_send_rx) = crossbeam_channel::unbounded();
+    let (network_send_tx, network_send_rx) = crossbeam_channel::bounded(1);
 
     let pattern_eval_handle = thread::Builder::new()
         .name("pattern-eval".to_string())
@@ -98,6 +108,9 @@ fn main() {
             let mut pattern_playstart = None;
             let mut parameters = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::new() };
 
+            let mut last_network_send = Instant::now();
+            let mut network_send_buffer = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
+
             loop {
                 let call = patteval_call_rx.recv().unwrap();
                 match call {
@@ -112,21 +125,40 @@ fn main() {
                             pattern_playstart = None;
                         } else {
                             // get current time in milliseconds as f64
-                            pattern_playstart = Some(Instant::now().add(js_milliseconds_to_duration(playstart_offset)));
+                            last_network_send = Instant::now();
+                            pattern_playstart = Some(instant_add_js_milliseconds(Instant::now(), playstart_offset));
                         }
                     },
                     PatternEvalCall::EvalBatch{ time_arr_instants } => {
                         let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
-                            let time = if let Some(playstart) = pattern_playstart { time.sub(playstart).as_nanos() as f64 / 1e6 } else { 0.0 };
+                            let time = if let Some(playstart) = pattern_playstart { time.sub(playstart).as_nanos() as f64 / 1e6 } else { parameters.time };
                             parameters.time = time;
                             let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters);
                             eval
                         }).collect();
+                        network_send_buffer.extend_from_slice(&eval_arr);
                         patteval_return_tx.send(eval_arr).unwrap();
-                        network_send_tx.send(PEWSServerMessage::PlaybackUpdate(eval_arr)).unwrap();
+
+                        if pattern_playstart.is_some() && (Instant::now() - last_network_send).as_secs_f64() > 1.0/60.0 {
+                            last_network_send = Instant::now();
+                            match network_send_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
+                                Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
+                                res => {
+                                    res.unwrap();
+                                }
+                            }
+                            // network_send_tx.send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }).unwrap();
+                            // if let Err(e) = network_send_tx.send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
+                            //     // network thread exited, so we should exit
+                            //     break;
+                            // }
+                            network_send_buffer.clear();
+                        }
                     },
                 }
             }
+
+            println!("pattern-eval thread exiting...");
         })
         .unwrap();
 
@@ -189,13 +221,17 @@ fn main() {
                     let num_instants = (device_update_rate / CALLBACK_RATE) as u32;
                     let time_arr_instants = (0..num_instants).map(|i| deadline_time + tick_dur*i).collect();
                     patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).unwrap();
-                    let _eval_arr = patteval_return_rx.recv().unwrap();
+                    patteval_return_rx.recv().unwrap();
+                    // if let Err(e) = patteval_return_rx.recv() {
+                    //     // pattern eval thread exited, so we should exit
+                    //     break;
+                    // }
                     // println!("remaining time {:?}", deadline_time-Instant::now());
                     if Instant::now() > deadline_time {
                         eprintln!("missed deadline");
                     }
                 }
-
+                println!("mock streaming thread exiting...");
             })
             .unwrap())
      };
@@ -207,6 +243,7 @@ fn main() {
             .spawn(move || {
                 println!("net thread starting...");
                 network::start_ws_server(patteval_call_tx, network_send_rx);
+                println!("net thread thread exiting...");
             })
             .unwrap();
         Some(thread)
