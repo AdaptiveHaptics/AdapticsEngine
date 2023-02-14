@@ -223,19 +223,17 @@ fn main() {
 
                 let device_tick_dur = Duration::from_nanos(1_000_000_000/DEVICE_UPDATE_RATE);
                 let ecallback_tick_dur = Duration::from_secs_f64(1.0/CALLBACK_RATE);
-                let ecallback_tick_rx = crossbeam_channel::tick(ecallback_tick_dur);
                 let deadline_offset = ecallback_tick_dur * 1;
-                let mut last_time = Instant::now();
+                let mut last_tick = Instant::now();
 
                 assert!(device_tick_dur.as_secs_f64() > 0.0, "device_tick_dur must be > 0");
                 loop {
-                    ecallback_tick_rx.recv().unwrap();
-
+                    while last_tick + ecallback_tick_dur > Instant::now() {} //busy wait
                     let curr_time = Instant::now();
-                    "SOMETHING IS WRONG HERE, instead of jumping from 833.529 to 833.579 it jumps from 833.529 to 846.551. and then later from 848.5799 to 861.4906 where is this 13 ms coming from?";
-                    "it can be seen: in this print"
-                    println!("elapsed: {:?}", curr_time - last_time);
-                    last_time = curr_time;
+                    let elapsed = curr_time - last_tick;
+                    if elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {:?} > {:?}", elapsed, ecallback_tick_dur); }
+                    last_tick = curr_time;
+
                     let deadline_time = curr_time + deadline_offset;
 
                     let mut time_arr_instants = Vec::with_capacity((DEVICE_UPDATE_RATE as f64 / CALLBACK_RATE) as usize + 2);
@@ -253,8 +251,12 @@ fn main() {
                     //     break;
                     // }
                     // println!("remaining time {:?}", deadline_time-Instant::now());
-                    if Instant::now() > deadline_time {
-                        eprintln!("missed deadline");
+
+                    // both are needed because durations are always positive and subtraction saturates
+                    let deadline_remaining = deadline_time - Instant::now();
+                    let deadline_missed_by = Instant::now() - deadline_time;
+                    if deadline_remaining.is_zero() {
+                        eprintln!("missed deadline by {:?}", deadline_missed_by);
                     }
                 }
                 println!("mock streaming thread exiting...");
