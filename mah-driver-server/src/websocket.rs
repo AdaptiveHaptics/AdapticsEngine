@@ -224,8 +224,10 @@ fn websocket_dispatcher_loop_thread(network_send_rx: crossbeam_channel::Receiver
                 loop_through_send_removing_fails(&mut wsclients.lock().unwrap(), &msg);
             },
             Err(err) => {
-                eprintln!("{:?}", err);
-                panic!("recverr in websocket_handle_loop");
+                // eprintln!("{:?}", err);
+                // panic!("recverr in websocket_handle_loop");
+                // channel disconnected, so we should exit
+                break;
             },
         }
     }

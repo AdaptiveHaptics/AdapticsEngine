@@ -163,7 +163,13 @@ fn main() {
                         }
                     },
                     i if i == patteval_update_rx_idx => {
-                        let update = oper.recv(&patteval_update_rx).unwrap();
+                        let update = match oper.recv(&patteval_update_rx) {
+                            Ok(update) => update,
+                            Err(_) => {
+                                //channel disconnected, so we should exit
+                                break;
+                            }
+                        };
                         match update {
                             PatternEvalUpdate::UpdatePattern{ pattern_json } => {
                                 pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json);
@@ -222,10 +228,17 @@ fn main() {
                 };
                 STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback));
 
-                let mut ulh_streaming_controller = new_ulh_streaming_controller(CALLBACK_RATE as f32, static_streaming_emission_callback).unwrap();
-                ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
-                // ulh_streaming_controller.pin_mut().pause_emitter().unwrap();
-                println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
+                match new_ulh_streaming_controller(CALLBACK_RATE as f32, static_streaming_emission_callback) {
+                    Ok(mut ulh_streaming_controller) => {
+                        ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
+                        println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
+                    },
+                    Err(e) => {
+                        println!("error creating ulhaptics streaming controller: {}", e);
+                        let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
+                        drop(cb);
+                    }
+                }
             })
             .unwrap())
     } else {
