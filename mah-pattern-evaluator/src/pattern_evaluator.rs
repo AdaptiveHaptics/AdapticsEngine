@@ -20,6 +20,13 @@ pub struct PatternEvaluatorParameters {
     pub user_parameters: HashMap<String, f64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct HapeV2Coords {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
 
 impl PatternEvaluator {
     pub fn new(mah_animation: MidAirHapticsAnimationFileFormat) -> Self {
@@ -146,8 +153,8 @@ impl PatternEvaluator {
         mahunit * (std::f64::consts::PI / 180.0)
     }
 
-    fn coords_convert_to_hapev2(coords: &MAHCoords) -> MAHCoords {
-        MAHCoords {
+    fn coords_convert_to_hapev2(coords: &MAHCoords) -> HapeV2Coords {
+        HapeV2Coords {
             x: Self::unit_convert_dist_to_hapev2(&coords.x),
             y: Self::unit_convert_dist_to_hapev2(&coords.y),
             z: Self::unit_convert_dist_to_hapev2(&coords.z),
@@ -247,10 +254,10 @@ impl PatternEvaluator {
         let brush_t_rads = (brush_time * 2.0 * std::f64::consts::PI) % bp.max_t;
         brush_t_rads
     }
-    fn eval_hapev2_primitive_equation(bp: &HapeV2PrimitiveParams, time: f64) -> MAHCoords {
+    fn eval_hapev2_primitive_equation(bp: &HapeV2PrimitiveParams, time: f64) -> HapeV2Coords {
         if bp.k != 0.0 { panic!("not yet implemented"); }
         let brush_t_rads = Self::time_to_hapev2_brush_rads(bp, time);
-        MAHCoords {
+        HapeV2Coords {
             x: bp.A * (bp.a * brush_t_rads + bp.d).sin(),
             y: bp.B * (bp.b * brush_t_rads).sin(),
             z: 0.0,

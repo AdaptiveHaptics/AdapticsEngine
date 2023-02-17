@@ -1,16 +1,16 @@
-use std::collections::HashMap;
 use std::ops::{Sub, Add};
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 use cxx::CxxVector;
-use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime};
+use pattern_evaluator::BrushAtAnimLocalTime;
 use crossbeam_channel;
-use serde::{Deserialize, Serialize};
 
 mod websocket;
 use websocket::PEWSServerMessage;
+mod pattern_eval_thread;
+use pattern_eval_thread::{PatternEvalUpdate, PatternEvalCall};
 
 
 const CALLBACK_RATE: f64 = 500.0;
@@ -47,9 +47,9 @@ mod ffi {
         fn get_current_chrono_time() -> f64;
     }
 }
-use ffi::*;
-pub use ffi::EvalCoords;
-pub use ffi::EvalResult;
+pub use ffi::*;
+// pub use ffi::EvalCoords;
+// pub use ffi::EvalResult;
 
 impl From<BrushAtAnimLocalTime> for EvalResult {
     fn from(be: BrushAtAnimLocalTime) -> EvalResult {
@@ -66,19 +66,6 @@ impl From<BrushAtAnimLocalTime> for EvalResult {
 }
 
 type MilSec = f64;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "cmd", content = "data")]
-#[serde(rename_all = "snake_case")]
-pub enum PatternEvalUpdate {
-    UpdatePattern{ pattern_json: String },
-    UpdatePlaystart{ playstart: MilSec, playstart_offset: MilSec },
-    UpdateParameters{ evaluator_params: PatternEvaluatorParameters },
-}
-
-enum PatternEvalCall {
-    EvalBatch{ time_arr_instants: Vec<Instant>},
-}
 
 fn js_milliseconds_to_duration(ms: f64) -> Duration {
     if ms.is_sign_negative() { panic!("js_milliseconds_to_duration: ms is negative"); }
@@ -103,95 +90,12 @@ fn main() {
         .spawn(move || {
             println!("pattern-eval thread starting...");
 
-            let default_pattern = pattern_evaluator::MidAirHapticsAnimationFileFormat {
-                data_format: pattern_evaluator::MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
-                revision: pattern_evaluator::DataFormatRevision::CurrentRevision,
-                name: "DEFAULT_PATTERN".to_string(),
-                keyframes: vec![],
-                update_rate: 1000.0,
-                projection: pattern_evaluator::Projection::Plane,
-            };
-
-            let mut pattern_eval = PatternEvaluator::new(default_pattern);
-            let mut pattern_playstart: Option<Instant> = None;
-            let mut parameters = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::new() };
-
-            let mut last_network_send = Instant::now();
-            let mut network_send_buffer: Vec<BrushAtAnimLocalTime> = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
-
-            loop {
-                // not using select macro because of https://github.com/rust-lang/rust-analyzer/issues/11847
-                let mut sel = crossbeam_channel::Select::new();
-                let patteval_call_rx_idx = sel.recv(&patteval_call_rx);
-                let patteval_update_rx_idx = sel.recv(&patteval_update_rx);
-                let oper = sel.select();
-                match oper.index() {
-                    i if i == patteval_call_rx_idx => {
-                        let call = oper.recv(&patteval_call_rx).unwrap();
-                        match call {
-                            PatternEvalCall::EvalBatch{ time_arr_instants } => {
-                                let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
-                                    let time = if let Some(playstart) = pattern_playstart { time.sub(playstart).as_nanos() as f64 / 1e6 } else { parameters.time };
-                                    parameters.time = time;
-                                    let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters);
-                                    eval
-                                }).collect();
-                                if pattern_playstart.is_some() { network_send_buffer.extend_from_slice(&eval_arr); }
-                                patteval_return_tx.send(eval_arr).unwrap();
-
-                                if pattern_playstart.is_some() && (Instant::now() - last_network_send).as_secs_f64() > SECONDS_PER_NETWORK_SEND {
-                                    last_network_send = Instant::now();
-                                    if network_send_buffer.len() == 0 {
-                                        println!("[warn] skipping network update (no evals)");
-                                        continue;
-                                    }
-                                    else { println!("sending network update ({} evals)", network_send_buffer.len()); }
-                                    match network_send_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
-                                        Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
-                                        res => {
-                                            res.unwrap();
-                                        }
-                                    }
-                                    // network_send_tx.send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }).unwrap();
-                                    // if let Err(e) = network_send_tx.send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
-                                    //     // network thread exited, so we should exit
-                                    //     break;
-                                    // }
-                                    network_send_buffer.clear();
-                                }
-                            },
-                        }
-                    },
-                    i if i == patteval_update_rx_idx => {
-                        let update = match oper.recv(&patteval_update_rx) {
-                            Ok(update) => update,
-                            Err(_) => {
-                                //channel disconnected, so we should exit
-                                break;
-                            }
-                        };
-                        match update {
-                            PatternEvalUpdate::UpdatePattern{ pattern_json } => {
-                                pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json);
-                            },
-                            PatternEvalUpdate::UpdateParameters{ evaluator_params } => {
-                                parameters = evaluator_params;
-                            },
-                            PatternEvalUpdate::UpdatePlaystart{ playstart, playstart_offset } => {
-                                if playstart == 0.0 {
-                                    pattern_playstart = None;
-                                } else {
-                                    // get current time in milliseconds as f64
-                                    last_network_send = Instant::now();
-                                    network_send_buffer.clear();
-                                    pattern_playstart = Some(instant_add_js_milliseconds(Instant::now(), playstart_offset));
-                                }
-                            },
-                        }
-                    },
-                    _ => unreachable!(),
-                }
-            }
+            pattern_eval_thread::pattern_eval_loop(
+                patteval_call_rx,
+                patteval_update_rx,
+                patteval_return_tx,
+                network_send_tx,
+            );
 
             println!("pattern-eval thread exiting...");
         })
@@ -287,7 +191,8 @@ fn main() {
                         eprintln!("missed deadline by {:?}", deadline_missed_by);
                     }
                 }
-                println!("mock streaming thread exiting...");
+
+                //println!("mock streaming thread exiting...");
             })
             .unwrap())
      };

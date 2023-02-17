@@ -4,7 +4,7 @@ use std::{io::BufReader, net::TcpStream};
 use pattern_evaluator::BrushAtAnimLocalTime;
 use serde::{Serialize, Deserialize};
 use sha1::{Sha1, Digest};
-use base64;
+use base64::{self, Engine as _};
 
 use crate::PatternEvalUpdate;
 
@@ -92,8 +92,6 @@ fn create_ws_frame(opcode: WsFrameOpcodes, payload: &[u8]) -> Vec<u8> {
 }
 /// returns (fin (see rfc6455#section-5.2), opcode, payload_length, payload_start_index)
 fn parse_ws_frame_header(frame: &[u8]) -> Option<(bool, WsFrameOpcodes, usize, usize, [u8; 4])> {
-    use std::convert::TryInto;
-
     let mut i_aii = 0;
     let framelen = frame.len();
     let mut aii = || {let oi=i_aii; i_aii+=1; return if oi<framelen {Some(oi)} else {None}; };
@@ -151,7 +149,7 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                 let mut s1hasher = Sha1::new();
                 s1hasher.update(ms);
                 let res = s1hasher.finalize();
-                &base64::encode(res)
+                &base64::engine::general_purpose::STANDARD.encode(&res)
             };
         }
         buf.clear();
@@ -223,9 +221,7 @@ fn websocket_dispatcher_loop_thread(network_send_rx: crossbeam_channel::Receiver
             Ok(msg) => {
                 loop_through_send_removing_fails(&mut wsclients.lock().unwrap(), &msg);
             },
-            Err(err) => {
-                // eprintln!("{:?}", err);
-                // panic!("recverr in websocket_handle_loop");
+            Err(_) => {
                 // channel disconnected, so we should exit
                 break;
             },
