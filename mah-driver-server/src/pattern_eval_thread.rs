@@ -24,7 +24,7 @@ pub fn pattern_eval_loop(
 	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
 	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
 	network_send_tx: crossbeam_channel::Sender<PEWSServerMessage>,
-) {
+) -> Result<(), crossbeam_channel::RecvError> {
 	let default_pattern = pattern_evaluator::MidAirHapticsAnimationFileFormat {
 		data_format: pattern_evaluator::MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
 		revision: pattern_evaluator::DataFormatRevision::CurrentRevision,
@@ -49,7 +49,7 @@ pub fn pattern_eval_loop(
 		let oper = sel.select();
 		match oper.index() {
 			i if i == patteval_call_rx_idx => {
-				let call = oper.recv(&patteval_call_rx).unwrap();
+				let call = oper.recv(&patteval_call_rx)?;
 				match call {
 					PatternEvalCall::EvalBatch{ time_arr_instants } => {
 						let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
@@ -85,13 +85,7 @@ pub fn pattern_eval_loop(
 				}
 			},
 			i if i == patteval_update_rx_idx => {
-				let update = match oper.recv(&patteval_update_rx) {
-					Ok(update) => update,
-					Err(_) => {
-						//channel disconnected, so we should exit
-						break;
-					}
-				};
+				let update = oper.recv(&patteval_update_rx)?;
 				match update {
 					PatternEvalUpdate::UpdatePattern{ pattern_json } => {
 						pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json);
@@ -112,6 +106,7 @@ pub fn pattern_eval_loop(
 				}
 			},
 			_ => unreachable!(),
-		}
+		};
+
 	}
 }

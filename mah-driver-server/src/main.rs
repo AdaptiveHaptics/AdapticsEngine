@@ -90,12 +90,14 @@ fn main() {
         .spawn(move || {
             println!("pattern-eval thread starting...");
 
-            pattern_eval_thread::pattern_eval_loop(
+            let res = pattern_eval_thread::pattern_eval_loop(
                 patteval_call_rx,
                 patteval_update_rx,
                 patteval_return_tx,
                 network_send_tx,
             );
+
+            res.unwrap();
 
             println!("pattern-eval thread exiting...");
         })
