@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 use sha1::{Sha1, Digest};
 use base64;
 
-use crate::PatternEvalCall;
+use crate::PatternEvalUpdate;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,7 +141,7 @@ fn parse_ws_frame_full(frame: &[u8]) -> Option<WsFrameRecvd> {
     })
 }
 
-fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclients: &Arc<Mutex<Vec<MAHWebsocket>>>, patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>) {
+fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclients: &Arc<Mutex<Vec<MAHWebsocket>>>, patteval_call_tx: crossbeam_channel::Sender<PatternEvalUpdate>) {
     let sec_ws_key_header = "Sec-WebSocket-Key: ";
     let mut response = String::from("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ");
     while buf != "\r\n" { //line before data will have only \r\n (0D 0A)
@@ -231,7 +231,7 @@ fn websocket_dispatcher_loop_thread(network_send_rx: crossbeam_channel::Receiver
     }
 }
 
-pub fn start_ws_server(patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>, network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
+pub fn start_ws_server(patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
     let wsclients = Arc::new(Mutex::new(Vec::new()));
     let wsclients2 = wsclients.clone();
     std::thread::spawn(move || websocket_dispatcher_loop_thread(network_send_rx, wsclients2));
@@ -243,7 +243,7 @@ pub fn start_ws_server(patteval_call_tx: crossbeam_channel::Sender<PatternEvalCa
                 let mut buf = String::new();
                 bufreader.read_line(&mut buf).unwrap();
                 if buf.starts_with("GET / HTTP/1.1") {
-                    handle_websocket(bufreader, buf, &wsclients, patteval_call_tx.clone());
+                    handle_websocket(bufreader, buf, &wsclients, patteval_update_tx.clone());
                 } else {
                     println!("not websocket");
                 }
