@@ -17,6 +17,7 @@ cxx = "1.0"
 sha1 = "0.10"
 base64 = "0.21"
 rand = "0.8"
+clap = { version = "4.1.6", features = ["derive"] }
 
 [build-dependencies]
 cxx-build = "1.0"

@@ -67,7 +67,7 @@ pub fn pattern_eval_loop(
 								println!("[warn] skipping network update (no evals)");
 								continue;
 							}
-							else { println!("sending network update ({} evals)", network_send_buffer.len()); }
+							// else { println!("sending network update ({} evals)", network_send_buffer.len()); }
 							match network_send_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
 								Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
 								res => {

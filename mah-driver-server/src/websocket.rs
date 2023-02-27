@@ -229,11 +229,11 @@ fn websocket_dispatcher_loop_thread(network_send_rx: crossbeam_channel::Receiver
     }
 }
 
-pub fn start_ws_server(patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
+pub fn start_ws_server(websocket_server_addr: &str, patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
     let wsclients = Arc::new(Mutex::new(Vec::new()));
     let wsclients2 = wsclients.clone();
     std::thread::spawn(move || websocket_dispatcher_loop_thread(network_send_rx, wsclients2));
-    let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
+    let listener = TcpListener::bind(websocket_server_addr).unwrap();
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
