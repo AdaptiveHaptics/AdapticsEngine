@@ -375,12 +375,12 @@ impl PatternEvaluator {
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time))]
-    pub fn eval_brush_at_anim_local_time_json(&self, p: &str) -> String {
-        serde_json::to_string::<BrushAtAnimLocalTime>(&self.eval_brush_at_anim_local_time(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap())).unwrap()
+    pub fn eval_brush_at_anim_local_time_json(&self, p: &str, nep: &str) -> String {
+        serde_json::to_string::<BrushAtAnimLocalTime>(&self.eval_brush_at_anim_local_time(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap(), &serde_json::from_str::<NextEvalParams>(nep).unwrap())).unwrap()
     }
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time_for_max_t))]
-    pub fn eval_brush_at_anim_local_time_for_max_t_json(&self, p: &str) -> String {
-        serde_json::to_string::<Vec<BrushAtAnimLocalTime>>(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap())).unwrap()
+    pub fn eval_brush_at_anim_local_time_for_max_t_json(&self, p: &str, nep: &str) -> String {
+        serde_json::to_string::<Vec<BrushAtAnimLocalTime>>(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap(), &serde_json::from_str::<NextEvalParams>(nep).unwrap())).unwrap()
     }
 }
 
