@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Sub;
 use std::time::Instant;
-use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime};
+use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams};
 use crossbeam_channel;
 use serde::{Deserialize, Serialize};
 use crate::*;
@@ -41,6 +41,8 @@ pub fn pattern_eval_loop(
 	let mut last_network_send = Instant::now();
 	let mut network_send_buffer: Vec<BrushAtAnimLocalTime> = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
 
+	let mut next_eval_params = NextEvalParams::default();
+
 	loop {
 		// not using select macro because of https://github.com/rust-lang/rust-analyzer/issues/11847
 		let mut sel = crossbeam_channel::Select::new();
@@ -55,7 +57,8 @@ pub fn pattern_eval_loop(
 						let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
 							let time = if let Some(playstart) = pattern_playstart { time.sub(playstart).as_nanos() as f64 / 1e6 } else { parameters.time };
 							parameters.time = time;
-							let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters);
+							let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters, &next_eval_params);
+							next_eval_params = eval.next_eval_params.clone();
 							eval
 						}).collect();
 						if pattern_playstart.is_some() { network_send_buffer.extend_from_slice(&eval_arr); }
@@ -94,6 +97,7 @@ pub fn pattern_eval_loop(
 						parameters = evaluator_params;
 					},
 					PatternEvalUpdate::UpdatePlaystart{ playstart, playstart_offset } => {
+						next_eval_params = NextEvalParams::default();
 						if playstart == 0.0 {
 							pattern_playstart = None;
 						} else {

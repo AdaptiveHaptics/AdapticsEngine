@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum DataFormatRevision {
-    #[serde(rename = "0.0.4-alpha.1")] CurrentRevision
+    #[serde(rename = "0.0.5-alpha.1")] CurrentRevision
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
@@ -115,6 +115,29 @@ pub struct IntensityWithTransition {
     pub transition: MAHTransition,
 }
 
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+pub struct MAHCondition {
+    pub parameter: String,
+    pub value: f64,
+    pub operator: MAHConditionalOperator,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[serde(tag = "name", content = "params")]
+#[serde(rename_all = "snake_case")]
+pub enum MAHConditionalOperator {
+    Lt {},
+    LtEq {},
+    Gt {},
+    GtEq {},
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+pub struct ConditionalJump {
+    pub condition: MAHCondition,
+    pub jump_to: MAHTime,
+}
+
 /// standard keyframe with coords, brush, intensity, and transitions
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 // #[ts(export)]
@@ -123,9 +146,10 @@ pub struct MAHKeyframeStandard {
     pub brush: Option<BrushWithTransition>,
     pub intensity: Option<IntensityWithTransition>,
     pub coords: CoordsWithTransition,
+    pub cjump: Option<ConditionalJump>,
 }
 
-/// Holds the coordinates of the previous keyframe until elapsed.
+/// Holds the path coordinates of the previous keyframe until elapsed.
 /// can be used to animate the brush/intensity at a static location in the path,
 /// or just to create a pause in the animation path.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
@@ -134,6 +158,13 @@ pub struct MAHKeyframePause {
     pub time: MAHTime,
     pub brush: Option<BrushWithTransition>,
     pub intensity: Option<IntensityWithTransition>,
+    pub cjump: Option<ConditionalJump>,
+}
+
+/// Stops the pattern and pauses the playback device
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+pub struct MAHKeyframeStop {
+    pub time: MAHTime,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
@@ -143,4 +174,5 @@ pub struct MAHKeyframePause {
 pub enum MAHKeyframe {
     Standard(MAHKeyframeStandard),
     Pause(MAHKeyframePause),
+    Stop(MAHKeyframeStop),
 }

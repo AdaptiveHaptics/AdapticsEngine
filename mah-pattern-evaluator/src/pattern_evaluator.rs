@@ -76,6 +76,8 @@ impl PatternEvaluator {
                     update_kfc!(kf, brush ?);
                     update_kfc!(kf, intensity ?);
                 },
+                MAHKeyframe::Stop(_) => {}, // do nothing
+
             }
             kfc.keyframe = Some(kf.clone());
         }
@@ -89,8 +91,8 @@ impl PatternEvaluator {
     }
 
     /// returns (pf, nf) where pf is the factor for the previous keyframe and nf is the factor for the next keyframe
-    fn perform_transition_interp(p: &PatternEvaluatorParameters, prev_time: f64, next_time: f64, transition: &MAHTransition) -> (f64, f64) {
-        let dt = (p.time - prev_time) / (next_time - prev_time);
+    fn perform_transition_interp(pattern_time: MAHTime, prev_time: f64, next_time: f64, transition: &MAHTransition) -> (f64, f64) {
+        let dt = (pattern_time - prev_time) / (next_time - prev_time);
         match transition {
             MAHTransition::Linear {} => (1.0 - dt, dt),
             MAHTransition::Step {} => {
@@ -103,7 +105,7 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_intensity(p: &PatternEvaluatorParameters, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> f64 {
+    fn eval_intensity(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> f64 {
         let prev_intensity = prev_kfc.intensity.as_ref();
         let next_intensity = next_kfc.intensity.as_ref();
 
@@ -117,7 +119,7 @@ impl PatternEvaluator {
         if let (Some(prev_intensity), Some(next_intensity)) = (prev_intensity, next_intensity) {
             let piv = get_intensity_value(&prev_intensity.pwt.intensity);
             let niv = get_intensity_value(&next_intensity.pwt.intensity);
-            let (pf, nf) = Self::perform_transition_interp(p, prev_intensity.time, next_intensity.time, &prev_intensity.pwt.transition);
+            let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_intensity.time, next_intensity.time, &prev_intensity.pwt.transition);
             return pf * piv + nf * niv;
         } else if let Some(prev_intensity) = prev_intensity {
             return get_intensity_value(&prev_intensity.pwt.intensity);
@@ -126,15 +128,15 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_coords(p: &PatternEvaluatorParameters, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> MAHCoords {
+    fn eval_coords(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> MAHCoords {
         let prev_coords_att = prev_kfc.coords.as_ref();
         let next_coords_att = next_kfc.coords.as_ref();
         let next_keyframe = next_kfc.keyframe.as_ref();
         if let (Some(prev_coords_att), Some(next_coords_att), Some(next_keyframe)) = (prev_coords_att, next_coords_att, next_keyframe) {
             return match next_keyframe {
-                MAHKeyframe::Pause(_) => { prev_coords_att.pwt.coords.clone() },
+                MAHKeyframe::Stop(_) | MAHKeyframe::Pause(_) => { prev_coords_att.pwt.coords.clone() },
                 MAHKeyframe::Standard(_) => {
-                    let (pf, nf) = Self::perform_transition_interp(p, prev_coords_att.time, next_coords_att.time, &prev_coords_att.pwt.transition);
+                    let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_coords_att.time, next_coords_att.time, &prev_coords_att.pwt.transition);
                     return &prev_coords_att.pwt.coords * pf + &next_coords_att.pwt.coords * nf;
                 }
             };
@@ -186,7 +188,7 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_brush_hapev2(p: &PatternEvaluatorParameters, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> BrushEvalParams {
+    fn eval_brush_hapev2(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> BrushEvalParams {
         fn eval_mahbrush(brush: &MAHBrush) -> BrushEvalParams {
             let primitive_params = PatternEvaluator::get_hapev2_primitive_params_for_brush(brush);
             match brush {
@@ -226,7 +228,7 @@ impl PatternEvaluator {
                 let prev_brush_eval = eval_mahbrush(&prev_brush.pwt.brush);
                 let next_brush_eval = eval_mahbrush(&next_brush.pwt.brush);
                 if prev_brush_eval.primitive_type == next_brush_eval.primitive_type {
-                    let (pf, nf) = Self::perform_transition_interp(p, prev_brush.time, next_brush.time, &prev_brush.pwt.transition);
+                    let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_brush.time, next_brush.time, &prev_brush.pwt.transition);
                     BrushEvalParams {
                         painter: Painter {
                             z_rot: prev_brush_eval.painter.z_rot * pf + nf * next_brush_eval.painter.z_rot,
@@ -264,8 +266,8 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_hapev2_primitive_into_mah_units(p: &PatternEvaluatorParameters, brush_eval: &BrushEvalParams) -> MAHCoords {
-        let brush_coords = Self::eval_hapev2_primitive_equation(&brush_eval.primitive_params, p.time);
+    fn eval_hapev2_primitive_into_mah_units(pattern_time: MAHTime, brush_eval: &BrushEvalParams) -> MAHCoords {
+        let brush_coords = Self::eval_hapev2_primitive_equation(&brush_eval.primitive_params, pattern_time);
         let sx = brush_coords.x * brush_eval.painter.x_scale;
         let sy = brush_coords.y * brush_eval.painter.y_scale;
         let rx = sx * brush_eval.painter.z_rot.cos() - sy * brush_eval.painter.z_rot.sin();
@@ -277,23 +279,50 @@ impl PatternEvaluator {
         }
     }
 
-    pub fn eval_path_at_anim_local_time(&self, p: &PatternEvaluatorParameters) -> PathAtAnimLocalTime {
-        let prev_kfc = self.get_prev_kf_config(p.time);
-        let next_kfc = self.get_next_kf_config(p.time);
+    pub fn eval_path_at_anim_local_time(&self, p: &PatternEvaluatorParameters, nep: &NextEvalParams) -> PathAtAnimLocalTime {
+        let pattern_time = p.time + nep.time_offset;
+        let prev_kfc = self.get_prev_kf_config(pattern_time);
+        let next_kfc = self.get_next_kf_config(pattern_time);
 
-        let coords = Self::eval_coords(&p, &prev_kfc, &next_kfc);
-        let intensity = Self::eval_intensity(&p, &prev_kfc, &next_kfc);
-        let brush = Self::eval_brush_hapev2(&p, &prev_kfc, &next_kfc);
+        let coords = Self::eval_coords(pattern_time, &prev_kfc, &next_kfc);
+        let intensity = Self::eval_intensity(pattern_time, &prev_kfc, &next_kfc);
+        let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc);
 
-        PathAtAnimLocalTime { coords, intensity, brush }
+        let stop = match prev_kfc.keyframe {
+            Some(MAHKeyframe::Stop(_)) => true,
+            _ => false,
+        };
+
+        let next_eval_params = (|| {
+            let kf = prev_kfc.keyframe?;
+            if nep.last_cjump_eval_time <= *kf.time() {
+                let cjump = kf.cjump()?;
+                if cjump.condition.eval(p) {
+                    return Some(NextEvalParams {
+                        last_cjump_eval_time: cjump.jump_to,
+                        time_offset: cjump.jump_to - p.time,
+                    })
+                }
+            }
+            None
+        })().unwrap_or(NextEvalParams {
+            last_cjump_eval_time: pattern_time,
+            time_offset: nep.time_offset,
+        });
+
+        PathAtAnimLocalTime {
+            coords, intensity, brush,
+            pattern_time,
+            stop,
+            next_eval_params,
+        }
     }
 
 
-    pub fn eval_brush_at_anim_local_time(&self, p: &PatternEvaluatorParameters) -> BrushAtAnimLocalTime {
-        let pattern_time = p.time;
-        let path_eval = self.eval_path_at_anim_local_time(p);
+    pub fn eval_brush_at_anim_local_time(&self, p: &PatternEvaluatorParameters, nep: &NextEvalParams) -> BrushAtAnimLocalTime {
+        let path_eval = self.eval_path_at_anim_local_time(p, nep);
 
-        let brush_coords_offset = Self::eval_hapev2_primitive_into_mah_units(&p, &path_eval.brush);
+        let brush_coords_offset = Self::eval_hapev2_primitive_into_mah_units(path_eval.pattern_time, &path_eval.brush);
         BrushAtAnimLocalTime {
             coords: MAHCoords {
                 x: path_eval.coords.x + brush_coords_offset.x,
@@ -301,15 +330,18 @@ impl PatternEvaluator {
                 z: path_eval.coords.z,
             },
             intensity: path_eval.intensity,
-            pattern_time,
+
+            pattern_time: path_eval.pattern_time,
+            stop: path_eval.stop,
+            next_eval_params: path_eval.next_eval_params,
         }
     }
 
-    pub fn eval_brush_at_anim_local_time_for_max_t(&self, p: &PatternEvaluatorParameters) -> Vec<BrushAtAnimLocalTime> {
+    pub fn eval_brush_at_anim_local_time_for_max_t(&self, p: &PatternEvaluatorParameters, nep: &NextEvalParams) -> Vec<BrushAtAnimLocalTime> {
         let max_number_of_points = 200;
         let device_frequency = 20000; //20khz
 
-        let path_eval_base = self.eval_path_at_anim_local_time(&p);
+        let path_eval_base = self.eval_path_at_anim_local_time(&p, nep);
 
         let bp = &path_eval_base.brush.primitive_params;
         let max_t_in_ms = (1000.0 * bp.max_t / (bp.draw_frequency * 2.0 * std::f64::consts::PI)) as f64; //solve `time / 1000 * draw_frequency * 2Pi = max_t` equation for time
@@ -320,9 +352,12 @@ impl PatternEvaluator {
 
         let mut evals = vec![];
         let mut i = 0.0;
+        let mut last_nep = nep;
         while i < max_t_in_ms {
             let step_p = PatternEvaluatorParameters { time: p.time + (i as f64), ..p.clone() };
-            evals.push(self.eval_brush_at_anim_local_time(&step_p));
+            let eval_res = self.eval_brush_at_anim_local_time(&step_p, last_nep);
+            evals.push(eval_res);
+            last_nep = &evals.get(evals.len() - 1).unwrap().next_eval_params;
             i += f64::max(device_step, min_step);
         }
 
@@ -370,13 +405,33 @@ struct MAHKeyframeConfig<'a> {
 pub struct PathAtAnimLocalTime {
     pub coords: MAHCoords,
     pub intensity: f64,
+    pub pattern_time: MAHTime,
+    pub stop: bool,
+    pub next_eval_params: NextEvalParams,
     brush: BrushEvalParams,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BrushAtAnimLocalTime {
     pub coords: MAHCoords,
     pub intensity: f64,
-    pub pattern_time: f64,
+    pub pattern_time: MAHTime,
+    pub stop: bool,
+    pub next_eval_params: NextEvalParams,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct NextEvalParams {
+    last_cjump_eval_time: MAHTime,
+    time_offset: MAHTime,
+}
+impl Default for NextEvalParams {
+    fn default() -> Self {
+        NextEvalParams {
+            last_cjump_eval_time: 0.0,
+            time_offset: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +494,29 @@ impl MAHKeyframe {
         match self {
             MAHKeyframe::Standard(kf) => &kf.time,
             MAHKeyframe::Pause(kf) => &kf.time,
+            MAHKeyframe::Stop(kf) => &kf.time,
+        }
+    }
+    pub fn cjump(&self) -> Option<&ConditionalJump> {
+        match self {
+            MAHKeyframe::Standard(kf) => kf.cjump.as_ref(),
+            MAHKeyframe::Pause(kf) => kf.cjump.as_ref(),
+            MAHKeyframe::Stop(_) => None,
+        }
+    }
+}
+
+impl MAHCondition {
+    pub fn eval(&self, params: &PatternEvaluatorParameters) -> bool {
+        if let Some(user_param_value) = params.user_parameters.get(&self.parameter) {
+            match self.operator {
+                MAHConditionalOperator::Lt {  } => user_param_value < &self.value,
+                MAHConditionalOperator::LtEq {  } => user_param_value <= &self.value,
+                MAHConditionalOperator::Gt {  } => user_param_value > &self.value,
+                MAHConditionalOperator::GtEq {  } => user_param_value >= &self.value,
+            }
+        } else {
+            false
         }
     }
 }
@@ -468,13 +546,15 @@ mod test {
             let now = Instant::now();
 
             let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
+            let mut last_nep = NextEvalParams { last_cjump_eval_time: 0.0, time_offset: 0.0 };
             for i in 0..200 {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
-                let eval_result = pe.eval_path_at_anim_local_time(&pep);
+                let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
                 if eval_result.coords.z != 0.0 {
                     println!("{:?}", eval_result);
                 }
+                last_nep = eval_result.next_eval_params;
             }
 
             let elapsed = now.elapsed();
@@ -498,13 +578,15 @@ mod test {
             }
 
             let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
-            for i in 0..20 {
+            let mut last_nep = NextEvalParams { last_cjump_eval_time: 0.0, time_offset: 0.0 };
+            for i in 0..200 {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
-                let eval_result = pe.eval_path_at_anim_local_time(&pep);
+                let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
                 if eval_result.coords.z != 0.0 {
                     println!("{:?}", eval_result);
                 }
+                last_nep = eval_result.next_eval_params;
             }
         }
     }
