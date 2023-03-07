@@ -382,6 +382,11 @@ impl PatternEvaluator {
     pub fn eval_brush_at_anim_local_time_for_max_t_json(&self, p: &str, nep: &str) -> String {
         serde_json::to_string::<Vec<BrushAtAnimLocalTime>>(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap(), &serde_json::from_str::<NextEvalParams>(nep).unwrap())).unwrap()
     }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = default_next_eval_params))]
+    pub fn default_next_eval_params() -> String {
+        serde_json::to_string::<NextEvalParams>(&NextEvalParams::default()).unwrap()
+    }
 }
 
 pub type PatternEvalWasmPublicTypes = (MidAirHapticsAnimationFileFormat, PatternEvaluatorParameters, BrushAtAnimLocalTime, Vec<BrushAtAnimLocalTime>);
