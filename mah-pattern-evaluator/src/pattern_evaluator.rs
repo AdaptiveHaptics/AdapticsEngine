@@ -48,17 +48,20 @@ impl PatternEvaluator {
     fn get_kf_config_type(&self, t: f64, prev: bool) -> MAHKeyframeConfig {
         let mut kfc = MAHKeyframeConfig::default();
         macro_rules! update_kfc {
-            ($kf:ident, $prop:ident ?) => {
+            ($kf:ident, $prop:ident ?) => { // update time and value (if optional prop present)
                 kfc.$prop = $kf.$prop.as_ref().map(|b| PrimitiveWithTransitionAtTime {
                     time: $kf.time,
                     pwt: b,
                 }).or(kfc.$prop);
             };
-            ($kf:ident, $prop:ident !) => {
+            ($kf:ident, $prop:ident !) => { // update time and value with non optional prop
                 kfc.$prop = Some(PrimitiveWithTransitionAtTime {
                     time: $kf.time,
                     pwt: &$kf.$prop,
                 });
+            };
+            ($kf:ident, $prop:ident :) => { // update time only
+                kfc.$prop = kfc.$prop.map(|mut c| { c.time = $kf.time; c });
             };
         }
         let kf_iter: Vec<_> = if prev { self.mah_animation.keyframes.iter().collect() } else { self.mah_animation.keyframes.iter().rev().collect() };
@@ -72,12 +75,13 @@ impl PatternEvaluator {
                     update_kfc!(kf, intensity ?);
                 },
                 MAHKeyframe::Pause(kf) => {
-                    kfc.coords = kfc.coords.map(|mut c| { c.time = kf.time; c });
+                    update_kfc!(kf, coords :);
                     update_kfc!(kf, brush ?);
                     update_kfc!(kf, intensity ?);
                 },
-                MAHKeyframe::Stop(_) => {}, // do nothing
-
+                MAHKeyframe::Stop(kf) => {
+                    update_kfc!(kf, coords :); // pause behavior
+                },
             }
             kfc.keyframe = Some(kf.clone());
         }
