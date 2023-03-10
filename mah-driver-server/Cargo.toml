@@ -9,6 +9,7 @@ crossbeam-channel = "0.5"
 mah-pattern-evaluator = { path = "../mah-pattern-evaluator" }
 serde = "1.0"
 serde_json = "1.0"
+# thread-priority = "0.13"
 
 # ulhaptics
 cxx = "1.0"

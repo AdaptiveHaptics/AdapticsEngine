@@ -11,7 +11,7 @@ mod websocket;
 use websocket::PEWSServerMessage;
 mod pattern_eval_thread;
 use pattern_eval_thread::{PatternEvalUpdate, PatternEvalCall};
-
+// use thread_priority;
 
 const CALLBACK_RATE: f64 = 500.0;
 const SECONDS_PER_NETWORK_SEND: f64 = 1.0 / 30.0;
@@ -103,6 +103,9 @@ fn main() {
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded::<Vec<BrushAtAnimLocalTime>>(0);
     let (network_send_tx, network_send_rx) = crossbeam_channel::bounded(1);
 
+
+    // thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
+
     let pattern_eval_handle = thread::Builder::new()
         .name("pattern-eval".to_string())
         .spawn(move || {
@@ -171,6 +174,10 @@ fn main() {
             .name("mock-streaming".to_string())
             .spawn(move || {
                 println!("mock streaming thread starting...");
+
+
+                // println!("setting thread priority max");
+                // thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
 
 
                 let device_tick_dur = Duration::from_nanos(1_000_000_000/DEVICE_UPDATE_RATE);
