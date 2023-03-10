@@ -542,6 +542,29 @@ mod test {
     use crate::*;
 
     #[test]
+    fn test_cjump() {
+        let pattern_json_string_raw = r#"{"$DATA_FORMAT":"MidAirHapticsAnimationFileFormat","$REVISION":"0.0.5-alpha.1","name":"test","projection":"plane","update_rate":1,"keyframes":[{"time":0,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-45,"y":-5,"z":0},"transition":{"name":"linear","params":{}}}},{"time":500,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":10,"y":35,"z":0},"transition":{"name":"linear","params":{}}},"cjump":{"condition":{"parameter":"test","operator":{"name":"gt","params":{}},"value":10},"jump_to":4000}},{"time":1000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":50,"y":-5,"z":0},"transition":{"name":"linear","params":{}}},"cjump":{"condition":{"parameter":"a","operator":{"name":"lt","params":{}},"value":0},"jump_to":1.5}},{"time":1250,"type":"pause","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}}},{"time":1750,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":10,"y":-30,"z":0},"transition":{"name":"linear","params":{}}}},{"time":2000,"type":"stop"},{"time":2300,"type":"pause","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}}}]}"#;
+        let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
+        let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::from([("test".to_string(), 12.0)]) };
+        let mut last_nep = NextEvalParams { last_cjump_eval_time: 0.0, time_offset: 0.0 };
+        for i in 0..500 {
+            let time = f64::from(i) * 10.0;
+            pep.time = time;
+            let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
+            if i == 50 {
+                assert!(eval_result.pattern_time == 500.0);
+            }
+            if i == 51 {
+                assert!(eval_result.stop == true);
+                assert!(eval_result.pattern_time == 4010.0);
+            }
+            last_nep = eval_result.next_eval_params;
+        }
+    }
+
+
+    #[test]
+    #[ignore]
     fn bench() {
         let warmup_iterations = 50;
         let mut max_time = Duration::default();
