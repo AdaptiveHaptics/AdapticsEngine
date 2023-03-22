@@ -146,7 +146,7 @@ pub struct MAHKeyframeStandard {
     pub brush: Option<BrushWithTransition>,
     pub intensity: Option<IntensityWithTransition>,
     pub coords: CoordsWithTransition,
-    pub cjump: Option<ConditionalJump>,
+    pub cjumps: Vec<ConditionalJump>,
 }
 
 /// Holds the path coordinates of the previous keyframe until elapsed.
@@ -158,7 +158,7 @@ pub struct MAHKeyframePause {
     pub time: MAHTime,
     pub brush: Option<BrushWithTransition>,
     pub intensity: Option<IntensityWithTransition>,
-    pub cjump: Option<ConditionalJump>,
+    pub cjumps: Vec<ConditionalJump>,
 }
 
 /// Stops the pattern and pauses the playback device

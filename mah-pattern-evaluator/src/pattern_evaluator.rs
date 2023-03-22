@@ -300,12 +300,14 @@ impl PatternEvaluator {
         let next_eval_params = (|| {
             let kf = prev_kfc.keyframe?;
             if nep.last_cjump_eval_time <= *kf.time() {
-                let cjump = kf.cjump()?;
-                if cjump.condition.eval(p) {
-                    return Some(NextEvalParams {
-                        last_cjump_eval_time: cjump.jump_to,
-                        time_offset: cjump.jump_to - p.time,
-                    })
+                let cjumps = kf.cjumps()?;
+                for cjump in cjumps {
+                    if cjump.condition.eval(p) {
+                        return Some(NextEvalParams {
+                            last_cjump_eval_time: cjump.jump_to,
+                            time_offset: cjump.jump_to - p.time,
+                        })
+                    }
                 }
             }
             None
@@ -506,10 +508,10 @@ impl MAHKeyframe {
             MAHKeyframe::Stop(kf) => &kf.time,
         }
     }
-    pub fn cjump(&self) -> Option<&ConditionalJump> {
+    pub fn cjumps(&self) -> Option<&Vec<ConditionalJump>> {
         match self {
-            MAHKeyframe::Standard(kf) => kf.cjump.as_ref(),
-            MAHKeyframe::Pause(kf) => kf.cjump.as_ref(),
+            MAHKeyframe::Standard(kf) => Some(&kf.cjumps),
+            MAHKeyframe::Pause(kf) => Some(&kf.cjumps),
             MAHKeyframe::Stop(_) => None,
         }
     }
