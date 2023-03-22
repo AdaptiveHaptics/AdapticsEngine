@@ -84,7 +84,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct MAHServerArgs {
-    #[clap(short, long, default_value = "127.0.0.1:8080")]
+    #[clap(short, long, default_value = "127.0.0.1:8037")]
     websocket_bind_addr: String,
 
     #[clap(short='m', long)]

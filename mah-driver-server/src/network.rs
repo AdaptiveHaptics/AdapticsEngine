@@ -39,7 +39,7 @@ pub fn start_ws_server(patteval_call_tx: crossbeam_channel::Sender<PatternEvalCa
         .unwrap();
 
     rt.block_on(async {
-        let server = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+        let server = TcpListener::bind("127.0.0.1:8037").await.unwrap();
 
         let (wstx_send, mut wstx_recv) = tokio::sync::mpsc::unbounded_channel();
         { // spawn a task to send messages to all connected clients
