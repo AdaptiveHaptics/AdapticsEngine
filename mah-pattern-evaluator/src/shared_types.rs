@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum DataFormatRevision {
-    #[serde(rename = "0.0.5-alpha.1")] CurrentRevision
+    #[serde(rename = "0.0.6-alpha.1")] CurrentRevision
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
