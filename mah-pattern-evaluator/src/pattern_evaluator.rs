@@ -196,7 +196,7 @@ impl PatternEvaluator {
         fn eval_mahbrush(brush: &MAHBrush) -> BrushEvalParams {
             let primitive_params = PatternEvaluator::get_hapev2_primitive_params_for_brush(brush);
             match brush {
-                MAHBrush::Circle { radius } => {
+                MAHBrush::Circle { radius, am_freq } => {
                     let amplitude = PatternEvaluator::unit_convert_dist_to_hapev2(radius);
                     BrushEvalParams {
                         primitive_type: std::mem::discriminant(brush),
@@ -206,9 +206,10 @@ impl PatternEvaluator {
                             x_scale: amplitude,
                             y_scale: amplitude,
                         },
+                        am_freq: *am_freq,
                     }
                 }
-                MAHBrush::Line { length, thickness, rotation } => {
+                MAHBrush::Line { length, thickness, rotation, am_freq } => {
                     let length = PatternEvaluator::unit_convert_dist_to_hapev2(length);
                     let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(thickness);
                     let rotation = PatternEvaluator::unit_convert_rot_to_hapev2(rotation);
@@ -220,6 +221,7 @@ impl PatternEvaluator {
                             x_scale: length,
                             y_scale: thickness,
                         },
+                        am_freq: *am_freq,
                     }
                 }
             }
@@ -241,13 +243,14 @@ impl PatternEvaluator {
                         },
                         primitive_type: prev_brush_eval.primitive_type,
                         primitive_params: prev_brush_eval.primitive_params,
+                        am_freq: prev_brush_eval.am_freq * pf + nf * next_brush_eval.am_freq,
                     }
                 } else {
                     prev_brush_eval
                 }
             }
             (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush),
-            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0 }),
+            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0, am_freq: 0.0 }),
         }
 
 
@@ -270,16 +273,22 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_hapev2_primitive_into_mah_units(pattern_time: MAHTime, brush_eval: &BrushEvalParams) -> MAHCoords {
+    fn eval_hapev2_primitive_into_mah_units(pattern_time: MAHTime, brush_eval: &BrushEvalParams) -> UltraleapControlPoint {
         let brush_coords = Self::eval_hapev2_primitive_equation(&brush_eval.primitive_params, pattern_time);
         let sx = brush_coords.x * brush_eval.painter.x_scale;
         let sy = brush_coords.y * brush_eval.painter.y_scale;
         let rx = sx * brush_eval.painter.z_rot.cos() - sy * brush_eval.painter.z_rot.sin();
         let ry = sx * brush_eval.painter.z_rot.sin() + sy * brush_eval.painter.z_rot.cos();
-        MAHCoords {
-            x: rx * 1000.0,
-            y: ry * 1000.0,
-            z: 0.0,
+        // apply amplitude modulation from brush_eval.am_freq (in HZ)
+        let intensity = (brush_eval.am_freq * (pattern_time / 1000.0) * 2.0 * std::f64::consts::PI).cos() * 0.5 + 0.5;
+
+        UltraleapControlPoint {
+            coords: MAHCoords {
+                x: rx * 1000.0,
+                y: ry * 1000.0,
+                z: 0.0,
+            },
+            intensity,
         }
     }
 
@@ -317,10 +326,11 @@ impl PatternEvaluator {
         });
 
         PathAtAnimLocalTime {
-            coords, intensity, brush,
+            ul_control_point: UltraleapControlPoint { coords, intensity, },
             pattern_time,
             stop,
             next_eval_params,
+            brush,
         }
     }
 
@@ -330,12 +340,14 @@ impl PatternEvaluator {
 
         let brush_coords_offset = Self::eval_hapev2_primitive_into_mah_units(path_eval.pattern_time, &path_eval.brush);
         BrushAtAnimLocalTime {
-            coords: MAHCoords {
-                x: path_eval.coords.x + brush_coords_offset.x,
-                y: path_eval.coords.y + brush_coords_offset.y,
-                z: path_eval.coords.z,
+            ul_control_point: UltraleapControlPoint {
+                coords: MAHCoords {
+                    x: path_eval.ul_control_point.coords.x + brush_coords_offset.coords.x,
+                    y: path_eval.ul_control_point.coords.y + brush_coords_offset.coords.y,
+                    z: path_eval.ul_control_point.coords.z,
+                },
+                intensity: path_eval.ul_control_point.intensity * brush_coords_offset.intensity,
             },
-            intensity: path_eval.intensity,
 
             pattern_time: path_eval.pattern_time,
             stop: path_eval.stop,
@@ -412,10 +424,16 @@ struct MAHKeyframeConfig<'a> {
     keyframe: Option<MAHKeyframe>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UltraleapControlPoint {
+    pub coords: MAHCoords,
+    // pub direction: MAHCoords,
+    pub intensity: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct PathAtAnimLocalTime {
-    pub coords: MAHCoords,
-    pub intensity: f64,
+    pub ul_control_point: UltraleapControlPoint,
     pub pattern_time: MAHTime,
     pub stop: bool,
     pub next_eval_params: NextEvalParams,
@@ -424,8 +442,7 @@ pub struct PathAtAnimLocalTime {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BrushAtAnimLocalTime {
-    pub coords: MAHCoords,
-    pub intensity: f64,
+    pub ul_control_point: UltraleapControlPoint,
     pub pattern_time: MAHTime,
     pub stop: bool,
     pub next_eval_params: NextEvalParams,
@@ -462,6 +479,8 @@ struct BrushEvalParams {
     primitive_type: Discriminant<MAHBrush>,
     primitive_params: HapeV2PrimitiveParams,
     painter: Painter,
+    /// AM frequency in HZ
+    am_freq: f64,
 }
 #[derive(Debug, Clone)]
 struct Painter {
@@ -585,7 +604,7 @@ mod test {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
                 let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
-                if eval_result.coords.z != 0.0 {
+                if eval_result.ul_control_point.coords.z != 0.0 {
                     println!("{:?}", eval_result);
                 }
                 last_nep = eval_result.next_eval_params;
@@ -617,7 +636,7 @@ mod test {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
                 let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
-                if eval_result.coords.z != 0.0 {
+                if eval_result.ul_control_point.coords.z != 0.0 {
                     println!("{:?}", eval_result);
                 }
                 last_nep = eval_result.next_eval_params;

@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum DataFormatRevision {
-    #[serde(rename = "0.0.6-alpha.1")] CurrentRevision
+    #[serde(rename = "0.0.7-alpha.1")] CurrentRevision
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
@@ -69,8 +69,18 @@ pub struct MAHCoords {
 #[serde(rename_all = "snake_case")]
 // #[ts(export)]
 pub enum MAHBrush {
-    Circle { radius: f64 },
-    Line { length: f64, thickness: f64, rotation: f64 },
+    Circle {
+        radius: f64,
+        /// AM frequency in HZ
+        am_freq: f64
+    },
+    Line {
+        length: f64,
+        thickness: f64,
+        rotation: f64,
+        /// AM frequency in HZ
+        am_freq: f64
+    },
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]

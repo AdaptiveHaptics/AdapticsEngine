@@ -53,12 +53,12 @@ impl From<BrushAtAnimLocalTime> for EvalResult {
     fn from(be: BrushAtAnimLocalTime) -> EvalResult {
         EvalResult {
             coords: EvalCoords {
-                x: be.coords.x / 1000.0,
-                y: be.coords.y / 1000.0,
+                x: be.ul_control_point.coords.x / 1000.0,
+                y: be.ul_control_point.coords.y / 1000.0,
                 // z: be.coords.z / 1000.0,
                 z: 0.1,
             },
-            intensity: be.intensity,
+            intensity: be.ul_control_point.intensity,
         }
     }
 }
