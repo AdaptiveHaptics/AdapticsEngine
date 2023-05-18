@@ -13,11 +13,52 @@ pub struct PatternEvaluator {
     mah_animation: MidAirHapticsAnimationFileFormat,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PatternTransformation {
+    pub geo_matrix: [[f64; 4]; 4],
+    pub intensity_factor: f64,
+
+}
+impl Default for PatternTransformation {
+    fn default() -> Self {
+        Self {
+            geo_matrix: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            intensity_factor: 1.0,
+        }
+    }
+}
+impl PatternTransformation {
+    fn affine_transform(&self, coords: &MAHCoords) -> MAHCoords {
+        let mut coords = coords.clone();
+        coords.x = self.geo_matrix[0][0] * coords.x + self.geo_matrix[0][1] * coords.y + self.geo_matrix[0][2] * coords.z + self.geo_matrix[0][3];
+        coords.y = self.geo_matrix[1][0] * coords.x + self.geo_matrix[1][1] * coords.y + self.geo_matrix[1][2] * coords.z + self.geo_matrix[1][3];
+        coords.z = self.geo_matrix[2][0] * coords.x + self.geo_matrix[2][1] * coords.y + self.geo_matrix[2][2] * coords.z + self.geo_matrix[2][3];
+        coords
+    }
+    fn projection_transform(&self, coords: &MAHCoords) -> MAHCoords {
+        let mut coords = self.affine_transform(coords);
+        let w = self.geo_matrix[3][0] * coords.x + self.geo_matrix[3][1] * coords.y + self.geo_matrix[3][2] * coords.z + self.geo_matrix[3][3];
+        coords.x /= w;
+        coords.y /= w;
+        coords.z /= w;
+        coords
+    }
+    fn intensity_transform(&self, intensity: f64) -> f64 {
+        intensity * self.intensity_factor
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PatternEvaluatorParameters {
     pub time: f64,
     pub user_parameters: HashMap<String, f64>,
+    pub transform: PatternTransformation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -301,6 +342,9 @@ impl PatternEvaluator {
         let intensity = Self::eval_intensity(pattern_time, &prev_kfc, &next_kfc);
         let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc);
 
+        let coords = p.transform.projection_transform(&coords);
+        let intensity = p.transform.intensity_transform(intensity);
+
         let stop = match prev_kfc.keyframe {
             Some(MAHKeyframe::Stop(_)) => true,
             _ => false,
@@ -566,7 +610,7 @@ mod test {
     fn test_cjump() {
         let pattern_json_string_raw = r#"{"$DATA_FORMAT":"MidAirHapticsAnimationFileFormat","$REVISION":"0.0.5-alpha.1","name":"test","projection":"plane","update_rate":1,"keyframes":[{"time":0,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-45,"y":-5,"z":0},"transition":{"name":"linear","params":{}}}},{"time":500,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":10,"y":35,"z":0},"transition":{"name":"linear","params":{}}},"cjump":{"condition":{"parameter":"test","operator":{"name":"gt","params":{}},"value":10},"jump_to":4000}},{"time":1000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":50,"y":-5,"z":0},"transition":{"name":"linear","params":{}}},"cjump":{"condition":{"parameter":"a","operator":{"name":"lt","params":{}},"value":0},"jump_to":1.5}},{"time":1250,"type":"pause","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}}},{"time":1750,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":10,"y":-30,"z":0},"transition":{"name":"linear","params":{}}}},{"time":2000,"type":"stop"},{"time":2300,"type":"pause","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}}}]}"#;
         let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
-        let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::from([("test".to_string(), 12.0)]) };
+        let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::from([("test".to_string(), 12.0)]), transform: Default::default() };
         let mut last_nep = NextEvalParams { last_cjump_eval_time: 0.0, time_offset: 0.0 };
         for i in 0..500 {
             let time = f64::from(i) * 10.0;
@@ -598,7 +642,7 @@ mod test {
             }
             let now = Instant::now();
 
-            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
+            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default(), transform: Default::default() };
             let mut last_nep = NextEvalParams { last_cjump_eval_time: 0.0, time_offset: 0.0 };
             for i in 0..200 {
                 let time = f64::from(i) * 0.05;
@@ -630,7 +674,7 @@ mod test {
                 println!("Warmup done, starting benchmark..");
             }
 
-            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default() };
+            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default(), transform: Default::default() };
             let mut last_nep = NextEvalParams { last_cjump_eval_time: 0.0, time_offset: 0.0 };
             for i in 0..200 {
                 let time = f64::from(i) * 0.05;
