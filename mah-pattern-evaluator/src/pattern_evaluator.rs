@@ -17,6 +17,7 @@ pub struct PatternEvaluator {
 pub struct PatternTransformation {
     pub geo_matrix: [[f64; 4]; 4],
     pub intensity_factor: f64,
+    pub playback_speed: f64,
 
 }
 impl Default for PatternTransformation {
@@ -29,6 +30,7 @@ impl Default for PatternTransformation {
                 [0.0, 0.0, 0.0, 1.0],
             ],
             intensity_factor: 1.0,
+            playback_speed: 1.0,
         }
     }
 }
@@ -334,7 +336,16 @@ impl PatternEvaluator {
     }
 
     pub fn eval_path_at_anim_local_time(&self, p: &PatternEvaluatorParameters, nep: &NextEvalParams) -> PathAtAnimLocalTime {
-        let pattern_time = p.time + nep.time_offset;
+
+        let (pattern_time, nep) = {
+            let last_eval_pattern_time = nep.last_eval_pattern_time;
+            let delta_time = p.time + nep.time_offset - last_eval_pattern_time;
+            let delta_for_speed = p.transform.playback_speed * delta_time;
+            let time_offset = nep.time_offset + delta_for_speed - delta_time;
+            let pattern_time = p.time + time_offset;
+            (pattern_time, NextEvalParams { time_offset, last_eval_pattern_time })
+        };
+
         let prev_kfc = self.get_prev_kf_config(pattern_time);
         let next_kfc = self.get_next_kf_config(pattern_time);
 
@@ -448,6 +459,11 @@ impl PatternEvaluator {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = default_next_eval_params))]
     pub fn default_next_eval_params() -> String {
         serde_json::to_string::<NextEvalParams>(&NextEvalParams::default()).unwrap()
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = default_pattern_transformation))]
+    pub fn default_pattern_transformation() -> String {
+        serde_json::to_string::<PatternTransformation>(&PatternTransformation::default()).unwrap()
     }
 }
 
