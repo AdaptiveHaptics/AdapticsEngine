@@ -30,13 +30,12 @@ pub fn pattern_eval_loop(
 		revision: pattern_evaluator::DataFormatRevision::CurrentRevision,
 		name: "DEFAULT_PATTERN".to_string(),
 		keyframes: vec![],
-		update_rate: 1000.0,
-		projection: pattern_evaluator::Projection::Plane,
+		pattern_transform: Default::default(),
 	};
 
 	let mut pattern_eval = PatternEvaluator::new(default_pattern);
 	let mut pattern_playstart: Option<Instant> = None;
-	let mut parameters = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::new(), transform: Default::default() };
+	let mut parameters = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::new(), geometric_transform: Default::default() };
 
 	let mut last_network_send = Instant::now();
 	let mut network_send_buffer: Vec<BrushAtAnimLocalTime> = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
