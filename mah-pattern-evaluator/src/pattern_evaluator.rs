@@ -68,7 +68,7 @@ impl PatternEvaluator {
         let kf_iter: Vec<_> = if prev { self.mah_animation.keyframes.iter().collect() } else { self.mah_animation.keyframes.iter().rev().collect() };
         for kf in kf_iter {
             if prev { if kf.time() > &t { break; } }
-			else { if kf.time() <= &t { break; } }
+			else if kf.time() <= &t { break; }
             match kf {
                 MAHKeyframe::Standard(kf) => {
                     update_kfc!(kf, coords !);
@@ -125,7 +125,7 @@ impl PatternEvaluator {
             let piv = get_intensity_value(&prev_intensity.pwt.intensity);
             let niv = get_intensity_value(&next_intensity.pwt.intensity);
             let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_intensity.time, next_intensity.time, &prev_intensity.pwt.transition);
-            return pf * piv + nf * niv;
+            pf * piv + nf * niv
         } else if let Some(prev_intensity) = prev_intensity {
             return get_intensity_value(&prev_intensity.pwt.intensity);
         } else {
@@ -138,13 +138,13 @@ impl PatternEvaluator {
         let next_coords_att = next_kfc.coords.as_ref();
         let next_keyframe = next_kfc.keyframe.as_ref();
         if let (Some(prev_coords_att), Some(next_coords_att), Some(next_keyframe)) = (prev_coords_att, next_coords_att, next_keyframe) {
-            return match next_keyframe {
+            match next_keyframe {
                 MAHKeyframe::Stop(_) | MAHKeyframe::Pause(_) => { prev_coords_att.pwt.coords.clone() },
                 MAHKeyframe::Standard(_) => {
                     let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_coords_att.time, next_coords_att.time, &prev_coords_att.pwt.transition);
-                    return &prev_coords_att.pwt.coords * pf + &next_coords_att.pwt.coords * nf;
+                    &prev_coords_att.pwt.coords * pf + &next_coords_att.pwt.coords * nf
                 }
-            };
+            }
         } else if let Some(prev_coords_att) = prev_coords_att {
             return prev_coords_att.pwt.coords.clone();
         } else {
@@ -263,8 +263,8 @@ impl PatternEvaluator {
 
     fn time_to_hapev2_brush_rads(bp: &HapeV2PrimitiveParams, time: f64) -> f64 {
         let brush_time = (time / 1000.0) * bp.draw_frequency;
-        let brush_t_rads = (brush_time * 2.0 * std::f64::consts::PI) % bp.max_t;
-        brush_t_rads
+
+        (brush_time * 2.0 * std::f64::consts::PI) % bp.max_t
     }
     fn eval_hapev2_primitive_equation(bp: &HapeV2PrimitiveParams, time: f64) -> HapeV2Coords {
         if bp.k != 0.0 { panic!("not yet implemented"); }
@@ -322,10 +322,7 @@ impl PatternEvaluator {
         // apply final geometric transform (intended for hand tracking etc.)
         let coords = p.geometric_transform.projection_transform(&coords);
 
-        let stop = match prev_kfc.keyframe {
-            Some(MAHKeyframe::Stop(_)) => true,
-            _ => false,
-        };
+        let stop = matches!(prev_kfc.keyframe, Some(MAHKeyframe::Stop(_)));
 
         let next_eval_params = (|| {
             let kf = prev_kfc.keyframe?;
@@ -380,10 +377,10 @@ impl PatternEvaluator {
         let max_number_of_points = 200;
         let device_frequency = 20000; //20khz
 
-        let path_eval_base = self.eval_path_at_anim_local_time(&p, nep);
+        let path_eval_base = self.eval_path_at_anim_local_time(p, nep);
 
         let bp = &path_eval_base.brush.primitive_params;
-        let max_t_in_ms = (1000.0 * bp.max_t / (bp.draw_frequency * 2.0 * std::f64::consts::PI)) as f64; //solve `time / 1000 * draw_frequency * 2Pi = max_t` equation for time
+        let max_t_in_ms = 1000.0 * bp.max_t / (bp.draw_frequency * 2.0 * std::f64::consts::PI); //solve `time / 1000 * draw_frequency * 2Pi = max_t` equation for time
 
         let device_step = 1000.0 / device_frequency as f64;
         let min_step = max_t_in_ms / max_number_of_points as f64;
@@ -393,10 +390,10 @@ impl PatternEvaluator {
         let mut i = 0.0;
         let mut last_nep = nep;
         while i < max_t_in_ms {
-            let step_p = PatternEvaluatorParameters { time: p.time + (i as f64), ..p.clone() };
+            let step_p = PatternEvaluatorParameters { time: p.time + i, ..p.clone() };
             let eval_res = self.eval_brush_at_anim_local_time(&step_p, last_nep);
             evals.push(eval_res);
-            last_nep = &evals.get(evals.len() - 1).unwrap().next_eval_params;
+            last_nep = &evals.last().unwrap().next_eval_params;
             i += f64::max(device_step, min_step);
         }
 
@@ -619,12 +616,12 @@ impl GeometricTransformsSimple {
         let mut coords = coords.clone();
 
         //scale
-        coords.x = self.scale.x.to_f64(&up) * coords.x;
-        coords.y = self.scale.y.to_f64(&up) * coords.y;
-        coords.z = self.scale.z.to_f64(&up) * coords.z;
+        coords.x *= self.scale.x.to_f64(up);
+        coords.y *= self.scale.y.to_f64(up);
+        coords.z *= self.scale.z.to_f64(up);
 
         //rotate
-        let radians = self.rotation.to_f64(&up) / 180.0 * std::f64::consts::PI;
+        let radians = self.rotation.to_f64(up) / 180.0 * std::f64::consts::PI;
         coords = MAHCoordsConst {
             x: coords.x * radians.cos() - coords.y * radians.sin(),
             y: coords.x * radians.sin() + coords.y * radians.cos(),
@@ -632,9 +629,9 @@ impl GeometricTransformsSimple {
         };
 
         //translate
-        coords.x = coords.x + self.translate.x.to_f64(&up);
-        coords.y = coords.y + self.translate.y.to_f64(&up);
-        coords.z = coords.z + self.translate.z.to_f64(&up);
+        coords.x += self.translate.x.to_f64(up);
+        coords.y += self.translate.y.to_f64(up);
+        coords.z += self.translate.z.to_f64(up);
 
         coords
     }
@@ -642,12 +639,12 @@ impl GeometricTransformsSimple {
         let mut coords = coords.clone();
 
         //translate
-        coords.x = coords.x - self.translate.x.to_f64(&up);
-        coords.y = coords.y - self.translate.y.to_f64(&up);
-        coords.z = coords.z - self.translate.z.to_f64(&up);
+        coords.x -= self.translate.x.to_f64(up);
+        coords.y -= self.translate.y.to_f64(up);
+        coords.z -= self.translate.z.to_f64(up);
 
         //rotate
-        let radians = self.rotation.to_f64(&up) / 180.0 * std::f64::consts::PI;
+        let radians = self.rotation.to_f64(up) / 180.0 * std::f64::consts::PI;
         coords = MAHCoordsConst {
             x: coords.x * radians.cos() + coords.y * radians.sin(),
             y: -coords.x * radians.sin() + coords.y * radians.cos(),
@@ -655,9 +652,9 @@ impl GeometricTransformsSimple {
         };
 
         //scale
-        coords.x = coords.x / self.scale.x.to_f64(&up);
-        coords.y = coords.y / self.scale.y.to_f64(&up);
-        coords.z = coords.z / self.scale.z.to_f64(&up);
+        coords.x /= self.scale.x.to_f64(up);
+        coords.y /= self.scale.y.to_f64(up);
+        coords.z /= self.scale.z.to_f64(up);
 
         coords
     }
@@ -703,7 +700,7 @@ mod test {
                 assert!(eval_result.pattern_time == 500.0);
             }
             if i == 51 {
-                assert!(eval_result.stop == true);
+                assert!(eval_result.stop);
                 assert!(eval_result.pattern_time == 4010.0);
             }
             last_nep = eval_result.next_eval_params;

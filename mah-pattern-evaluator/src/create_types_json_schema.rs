@@ -2,9 +2,6 @@ use std::fs;
 
 use schemars::schema_for;
 // use ts_rs::TS;
-mod shared_types;
-
-use pattern_evaluator;
 
 fn main() {
 

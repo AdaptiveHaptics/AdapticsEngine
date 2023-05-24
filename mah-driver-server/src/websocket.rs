@@ -65,7 +65,7 @@ fn create_ws_frame(opcode: WsFrameOpcodes, payload: &[u8]) -> Vec<u8> {
     { //payload length
         match payloadlen { //MASK is always false
             0..=125 => {
-                frame.push(0b00000000 | (payloadlen as u8));
+                frame.push(payloadlen as u8);
             }
             126..=65535 => {
                 frame.push(0b01111110);
@@ -94,7 +94,7 @@ fn create_ws_frame(opcode: WsFrameOpcodes, payload: &[u8]) -> Vec<u8> {
 fn parse_ws_frame_header(frame: &[u8]) -> Option<(bool, WsFrameOpcodes, usize, usize, [u8; 4])> {
     let mut i_aii = 0;
     let framelen = frame.len();
-    let mut aii = || {let oi=i_aii; i_aii+=1; return if oi<framelen {Some(oi)} else {None}; };
+    let mut aii = || {let oi=i_aii; i_aii+=1; if oi<framelen {Some(oi)} else {None} };
 
     let frameb0 = frame[aii()?];
     let fin = (frameb0 & 0b10000000) > 0;
@@ -149,14 +149,14 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                 let mut s1hasher = Sha1::new();
                 s1hasher.update(ms);
                 let res = s1hasher.finalize();
-                &base64::engine::general_purpose::STANDARD.encode(&res)
+                &base64::engine::general_purpose::STANDARD.encode(res)
             };
         }
         buf.clear();
         bufread.read_line(&mut buf).unwrap();
     }
     response+="\r\n\r\n";
-    bufread.get_mut().write(response.as_bytes()).unwrap();
+    bufread.get_mut().write_all(response.as_bytes()).unwrap();
     bufread.get_mut().flush().unwrap();
 
     let uid = rand::random();
@@ -184,7 +184,7 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                         }
                         WsFrameOpcodes::Ping => {
                             let pong_frame = create_ws_frame(WsFrameOpcodes::Pong, &wsfr.payload);
-                            tcpstream.write(&pong_frame).unwrap();
+                            tcpstream.write_all(&pong_frame).unwrap();
                         }
                         WsFrameOpcodes::Pong => {}
                     }
@@ -216,17 +216,10 @@ fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &PEW
 }
 
 fn websocket_dispatcher_loop_thread(network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>, wsclients: Arc<Mutex<Vec<MAHWebsocket>>>) {
-    loop {
-        match network_send_rx.recv() {
-            Ok(msg) => {
-                loop_through_send_removing_fails(&mut wsclients.lock().unwrap(), &msg);
-            },
-            Err(_) => {
-                // channel disconnected, so we should exit
-                break;
-            },
-        }
+    while let Ok(msg) = network_send_rx.recv() {
+        loop_through_send_removing_fails(&mut wsclients.lock().unwrap(), &msg);
     }
+    // channel disconnected so we should exit
 }
 
 pub fn start_ws_server(websocket_server_addr: &str, patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {

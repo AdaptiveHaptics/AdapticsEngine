@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::Sub;
 use std::time::Instant;
 use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams};
-use crossbeam_channel;
 use serde::{Deserialize, Serialize};
 use crate::*;
 
@@ -10,9 +9,9 @@ use crate::*;
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
 pub enum PatternEvalUpdate {
-    UpdatePattern{ pattern_json: String },
-    UpdatePlaystart{ playstart: MilSec, playstart_offset: MilSec },
-    UpdateParameters{ evaluator_params: PatternEvaluatorParameters },
+    Pattern{ pattern_json: String },
+    Playstart{ playstart: MilSec, playstart_offset: MilSec },
+    Parameters{ evaluator_params: PatternEvaluatorParameters },
 }
 
 pub enum PatternEvalCall {
@@ -65,7 +64,7 @@ pub fn pattern_eval_loop(
 
 						if pattern_playstart.is_some() && (Instant::now() - last_network_send).as_secs_f64() > SECONDS_PER_NETWORK_SEND {
 							last_network_send = Instant::now();
-							if network_send_buffer.len() == 0 {
+							if network_send_buffer.is_empty() {
 								println!("[warn] skipping network update (no evals)");
 								continue;
 							}
@@ -89,13 +88,13 @@ pub fn pattern_eval_loop(
 			i if i == patteval_update_rx_idx => {
 				let update = oper.recv(&patteval_update_rx)?;
 				match update {
-					PatternEvalUpdate::UpdatePattern{ pattern_json } => {
+					PatternEvalUpdate::Pattern{ pattern_json } => {
 						pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json);
 					},
-					PatternEvalUpdate::UpdateParameters{ evaluator_params } => {
+					PatternEvalUpdate::Parameters{ evaluator_params } => {
 						parameters = evaluator_params;
 					},
-					PatternEvalUpdate::UpdatePlaystart{ playstart, playstart_offset } => {
+					PatternEvalUpdate::Playstart{ playstart, playstart_offset } => {
 						next_eval_params = NextEvalParams::default();
 						if playstart == 0.0 {
 							pattern_playstart = None;

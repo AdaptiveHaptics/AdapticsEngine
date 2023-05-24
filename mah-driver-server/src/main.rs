@@ -5,7 +5,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 use cxx::CxxVector;
 use pattern_evaluator::BrushAtAnimLocalTime;
-use crossbeam_channel;
 
 mod websocket;
 use websocket::PEWSServerMessage;
@@ -130,7 +129,8 @@ fn main() {
             .spawn(move || {
                 println!("ulhaptics streaming thread starting...");
 
-                static STATIC_ECALLBACK_MUTEX: Mutex<Option<Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>>> = Mutex::new(None);
+                type CallbackFn = Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>;
+                static STATIC_ECALLBACK_MUTEX: Mutex<Option<CallbackFn>> = Mutex::new(None);
 
                 // sync epochs are used to convert from chrono time to Instant
                 // they both appear to use the same monotonic clock source and unix epoch, but i'd like to be agnostic of that assumption
@@ -239,6 +239,6 @@ fn main() {
 
 
     pattern_eval_handle.join().unwrap();
-    ulh_streaming_handle_opt.map(|h| h.join().unwrap());
-    net_handle_opt.map(|h| h.join().unwrap());
+    if let Some(h) = ulh_streaming_handle_opt { h.join().unwrap() }
+    if let Some(h) = net_handle_opt { h.join().unwrap() }
 }
