@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 // use ts_rs::TS;
@@ -33,6 +35,28 @@ pub struct MidAirHapticsAnimationFileFormat {
     pub pattern_transform: PatternTransformation,
 }
 
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[serde(tag = "type", content = "value")]
+#[serde(rename_all = "snake_case")]
+pub enum MAHDynamicF64 {
+    /// Specify a parameter instead of a constant value
+    Dynamic(String),
+    /// Normal constant value
+    F64(f64),
+}
+impl From<f64> for MAHDynamicF64 {
+    fn from(f: f64) -> Self {
+        Self::F64(f)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MAHCoordsDynamic {
+    pub x: MAHDynamicF64,
+    pub y: MAHDynamicF64,
+    pub z: MAHDynamicF64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GeometricTransformMatrix([[f64; 4]; 4]);
 impl Default for GeometricTransformMatrix {
@@ -54,17 +78,17 @@ impl std::ops::Index<usize> for GeometricTransformMatrix {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GeometricTransformsSimple {
-    pub translate: MAHCoords,
+    pub translate: MAHCoordsDynamic,
     /// in degrees
-    pub rotation: f64,
+    pub rotation: MAHDynamicF64,
     pub scale: MAHScaleTuple,
 }
 impl Default for GeometricTransformsSimple {
     fn default() -> Self {
         Self {
-            translate: MAHCoords { x: 0.0, y: 0.0, z: 0.0 },
-            rotation: 0.0,
-            scale: MAHScaleTuple { x: 1.0, y: 1.0, z: 1.0 },
+            translate: MAHCoordsDynamic { x: 0.0.into(), y: 0.0.into(), z: 0.0.into() },
+            rotation: 0.0.into(),
+            scale: MAHScaleTuple { x: 1.0.into(), y: 1.0.into(), z: 1.0.into() },
         }
     }
 }
@@ -72,8 +96,8 @@ impl Default for GeometricTransformsSimple {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PatternTransformation {
     pub geometric_transforms: GeometricTransformsSimple,
-    pub intensity_factor: MAHPercentage,
-    pub playback_speed: MAHPercentage,
+    pub intensity_factor: MAHPercentageDynamic,
+    pub playback_speed: MAHPercentageDynamic,
 }
 impl Default for PatternTransformation {
     fn default() -> Self {
@@ -87,22 +111,22 @@ impl Default for PatternTransformation {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MAHScaleTuple {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
+    pub x: MAHDynamicF64,
+    pub y: MAHDynamicF64,
+    pub z: MAHDynamicF64,
 }
 
-/// 100(%) becomes 1.0
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
-pub struct MAHPercentage(f64);
-impl From<f64> for MAHPercentage {
+/// will parse 100 (%) in JSON exchange format as 1.00 (f64)
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MAHPercentageDynamic(MAHDynamicF64);
+impl From<f64> for MAHPercentageDynamic {
     fn from(f: f64) -> Self {
-        Self(f * 100.0)
+        Self(MAHDynamicF64::F64(f * 100.0))
     }
 }
-impl Into<f64> for MAHPercentage {
-    fn into(self) -> f64 {
-        self.0 / 100.0
+impl MAHPercentageDynamic {
+    pub fn inner(&self) -> &MAHDynamicF64 {
+        &self.0
     }
 }
 
@@ -116,7 +140,7 @@ pub type MAHTime = f64;
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 // #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 // #[ts(export)]
-pub struct MAHCoords {
+pub struct MAHCoordsConst {
     /// in millimeters, [-100, 100]
     pub x: f64,
     /// in millimeters, [-100, 100]
@@ -171,7 +195,7 @@ pub enum MAHTransition {
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 // #[ts(export)]
 pub struct CoordsWithTransition {
-    pub coords: MAHCoords,
+    pub coords: MAHCoordsConst,
     pub transition: MAHTransition,
 }
 

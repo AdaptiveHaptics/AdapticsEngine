@@ -1,5 +1,5 @@
 mod shared_types;
-use std::{collections::HashMap, mem::Discriminant};
+use std::{mem::Discriminant, collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
@@ -13,11 +13,11 @@ pub struct PatternEvaluator {
     mah_animation: MidAirHapticsAnimationFileFormat,
 }
 
-
+pub type UserParameters = HashMap<String, f64>;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PatternEvaluatorParameters {
     pub time: f64,
-    pub user_parameters: HashMap<String, f64>,
+    pub user_parameters: UserParameters,
     pub geometric_transform: GeometricTransformMatrix,
 }
 
@@ -133,7 +133,7 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_coords(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> MAHCoords {
+    fn eval_coords(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> MAHCoordsConst {
         let prev_coords_att = prev_kfc.coords.as_ref();
         let next_coords_att = next_kfc.coords.as_ref();
         let next_keyframe = next_kfc.keyframe.as_ref();
@@ -148,7 +148,7 @@ impl PatternEvaluator {
         } else if let Some(prev_coords_att) = prev_coords_att {
             return prev_coords_att.pwt.coords.clone();
         } else {
-            return MAHCoords { x: 0.0, y: 0.0, z: 0.0 };
+            return MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 };
         }
     }
 
@@ -162,7 +162,7 @@ impl PatternEvaluator {
         mahunit * (std::f64::consts::PI / 180.0)
     }
 
-    fn coords_convert_to_hapev2(coords: &MAHCoords) -> HapeV2Coords {
+    fn coords_convert_to_hapev2(coords: &MAHCoordsConst) -> HapeV2Coords {
         HapeV2Coords {
             x: Self::unit_convert_dist_to_hapev2(&coords.x),
             y: Self::unit_convert_dist_to_hapev2(&coords.y),
@@ -286,7 +286,7 @@ impl PatternEvaluator {
         let intensity = (brush_eval.am_freq * (pattern_time / 1000.0) * 2.0 * std::f64::consts::PI).cos() * 0.5 + 0.5;
 
         UltraleapControlPoint {
-            coords: MAHCoords {
+            coords: MAHCoordsConst {
                 x: rx * 1000.0,
                 y: ry * 1000.0,
                 z: 0.0,
@@ -301,7 +301,7 @@ impl PatternEvaluator {
         let (pattern_time, nep) = {
             let last_eval_pattern_time = nep.last_eval_pattern_time;
             let delta_time = p.time + nep.time_offset - last_eval_pattern_time;
-            let delta_for_speed = self.mah_animation.pattern_transform.playback_speed.to_f64() * delta_time;
+            let delta_for_speed = self.mah_animation.pattern_transform.playback_speed.to_f64(&p.user_parameters) * delta_time;
             let time_offset = nep.time_offset + delta_for_speed - delta_time;
             let pattern_time = p.time + time_offset;
             (pattern_time, NextEvalParams { time_offset, last_eval_pattern_time })
@@ -315,9 +315,9 @@ impl PatternEvaluator {
         let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc);
 
         // apply intensity_factor
-        let intensity = self.mah_animation.pattern_transform.intensity_factor.to_f64() * intensity;
+        let intensity = self.mah_animation.pattern_transform.intensity_factor.to_f64(&p.user_parameters) * intensity;
 
-        let coords = self.mah_animation.pattern_transform.geometric_transforms.apply(&coords);
+        let coords = self.mah_animation.pattern_transform.geometric_transforms.apply(&coords, &p.user_parameters);
 
         // apply final geometric transform (intended for hand tracking etc.)
         let coords = p.geometric_transform.projection_transform(&coords);
@@ -362,7 +362,7 @@ impl PatternEvaluator {
         let brush_coords_offset = Self::eval_hapev2_primitive_into_mah_units(path_eval.pattern_time, &path_eval.brush);
         BrushAtAnimLocalTime {
             ul_control_point: UltraleapControlPoint {
-                coords: MAHCoords {
+                coords: MAHCoordsConst {
                     x: path_eval.ul_control_point.coords.x + brush_coords_offset.coords.x,
                     y: path_eval.ul_control_point.coords.y + brush_coords_offset.coords.y,
                     z: path_eval.ul_control_point.coords.z,
@@ -441,14 +441,14 @@ impl PatternEvaluator {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_apply))]
     pub fn geo_transform_simple_apply(gts: &str, coords: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
-        let coords = serde_json::from_str::<MAHCoords>(coords).unwrap();
-        serde_json::to_string::<MAHCoords>(&gts.apply(&coords)).unwrap()
+        let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
+        serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords)).unwrap()
     }
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_inverse))]
     pub fn geo_transform_simple_inverse(gts: &str, coords: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
-        let coords = serde_json::from_str::<MAHCoords>(coords).unwrap();
-        serde_json::to_string::<MAHCoords>(&gts.inverse(&coords)).unwrap()
+        let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
+        serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords)).unwrap()
     }
 }
 
@@ -471,7 +471,7 @@ struct MAHKeyframeConfig<'a> {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct UltraleapControlPoint {
-    pub coords: MAHCoords,
+    pub coords: MAHCoordsConst,
     // pub direction: MAHCoords,
     pub intensity: f64,
 }
@@ -534,32 +534,32 @@ struct Painter {
     y_scale: f64,
 }
 
-impl std::ops::Mul<f64> for &MAHCoords {
-    type Output = MAHCoords;
+impl std::ops::Mul<f64> for &MAHCoordsConst {
+    type Output = MAHCoordsConst;
 
     fn mul(self, rhs: f64) -> Self::Output {
-        MAHCoords {
+        MAHCoordsConst {
             x: self.x * rhs,
             y: self.y * rhs,
             z: self.z * rhs,
         }
     }
 }
-impl std::ops::Add<&MAHCoords> for &MAHCoords {
-    type Output = MAHCoords;
+impl std::ops::Add<&MAHCoordsConst> for &MAHCoordsConst {
+    type Output = MAHCoordsConst;
 
-    fn add(self, rhs: &MAHCoords) -> Self::Output {
-        MAHCoords {
+    fn add(self, rhs: &MAHCoordsConst) -> Self::Output {
+        MAHCoordsConst {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
         }
     }
 }
-impl std::ops::Add<MAHCoords> for MAHCoords {
-    type Output = MAHCoords;
+impl std::ops::Add<MAHCoordsConst> for MAHCoordsConst {
+    type Output = MAHCoordsConst;
 
-    fn add(self, rhs: MAHCoords) -> Self::Output {
+    fn add(self, rhs: MAHCoordsConst) -> Self::Output {
         &self + &rhs
     }
 }
@@ -597,14 +597,14 @@ impl MAHCondition {
 }
 
 impl GeometricTransformMatrix {
-    fn affine_transform(&self, coords: &MAHCoords) -> MAHCoords {
+    fn affine_transform(&self, coords: &MAHCoordsConst) -> MAHCoordsConst {
         let mut coords = coords.clone();
         coords.x = self[0][0] * coords.x + self[0][1] * coords.y + self[0][2] * coords.z + self[0][3];
         coords.y = self[1][0] * coords.x + self[1][1] * coords.y + self[1][2] * coords.z + self[1][3];
         coords.z = self[2][0] * coords.x + self[2][1] * coords.y + self[2][2] * coords.z + self[2][3];
         coords
     }
-    fn projection_transform(&self, coords: &MAHCoords) -> MAHCoords {
+    fn projection_transform(&self, coords: &MAHCoordsConst) -> MAHCoordsConst {
         let mut coords = self.affine_transform(coords);
         let w = self[3][0] * coords.x + self[3][1] * coords.y + self[3][2] * coords.z + self[3][3];
         coords.x /= w;
@@ -615,62 +615,72 @@ impl GeometricTransformMatrix {
 }
 
 impl GeometricTransformsSimple {
-    pub fn apply(&self, coords: &MAHCoords) -> MAHCoords {
+    pub fn apply(&self, coords: &MAHCoordsConst, up: &UserParameters) -> MAHCoordsConst {
         let mut coords = coords.clone();
 
         //scale
-        coords.x = self.scale.x * coords.x;
-        coords.y = self.scale.y * coords.y;
-        coords.z = self.scale.z * coords.z;
+        coords.x = self.scale.x.to_f64(&up) * coords.x;
+        coords.y = self.scale.y.to_f64(&up) * coords.y;
+        coords.z = self.scale.z.to_f64(&up) * coords.z;
 
         //rotate
-        let radians = self.rotation / 180.0 * std::f64::consts::PI;
-        coords = MAHCoords {
+        let radians = self.rotation.to_f64(&up) / 180.0 * std::f64::consts::PI;
+        coords = MAHCoordsConst {
             x: coords.x * radians.cos() - coords.y * radians.sin(),
             y: coords.x * radians.sin() + coords.y * radians.cos(),
             z: coords.z,
         };
 
         //translate
-        coords.x = coords.x + self.translate.x;
-        coords.y = coords.y + self.translate.y;
-        coords.z = coords.z + self.translate.z;
+        coords.x = coords.x + self.translate.x.to_f64(&up);
+        coords.y = coords.y + self.translate.y.to_f64(&up);
+        coords.z = coords.z + self.translate.z.to_f64(&up);
 
         coords
     }
-    pub fn inverse(&self, coords: &MAHCoords) -> MAHCoords {
+    pub fn inverse(&self, coords: &MAHCoordsConst, up: &UserParameters) -> MAHCoordsConst {
         let mut coords = coords.clone();
 
         //translate
-        coords.x = coords.x - self.translate.x;
-        coords.y = coords.y - self.translate.y;
-        coords.z = coords.z - self.translate.z;
+        coords.x = coords.x - self.translate.x.to_f64(&up);
+        coords.y = coords.y - self.translate.y.to_f64(&up);
+        coords.z = coords.z - self.translate.z.to_f64(&up);
 
         //rotate
-        let radians = self.rotation / 180.0 * std::f64::consts::PI;
-        coords = MAHCoords {
+        let radians = self.rotation.to_f64(&up) / 180.0 * std::f64::consts::PI;
+        coords = MAHCoordsConst {
             x: coords.x * radians.cos() + coords.y * radians.sin(),
             y: -coords.x * radians.sin() + coords.y * radians.cos(),
             z: coords.z,
         };
 
         //scale
-        coords.x = coords.x / self.scale.x;
-        coords.y = coords.y / self.scale.y;
-        coords.z = coords.z / self.scale.z;
+        coords.x = coords.x / self.scale.x.to_f64(&up);
+        coords.y = coords.y / self.scale.y.to_f64(&up);
+        coords.z = coords.z / self.scale.z.to_f64(&up);
 
         coords
     }
 }
-impl MAHPercentage {
-    pub fn to_f64(&self) -> f64 {
-        (*self).into()
+
+impl MAHDynamicF64 {
+    pub fn to_f64(&self, user_parameters: &UserParameters) -> f64 {
+        *match self {
+            Self::Dynamic(param) => user_parameters.get(param).unwrap_or(&0.0),
+            Self::F64(f) => f,
+        }
     }
 }
 
+impl MAHPercentageDynamic {
+    pub fn to_f64(&self, user_parameters: &UserParameters) -> f64 {
+        self.inner().to_f64(user_parameters) / 100.0
+    }
+}
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
     use std::time::Duration;
     use std::time::Instant;
 
