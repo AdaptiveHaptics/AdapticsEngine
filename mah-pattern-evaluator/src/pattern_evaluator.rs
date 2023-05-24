@@ -436,6 +436,20 @@ impl PatternEvaluator {
     pub fn default_geo_transform_matrix() -> String {
         serde_json::to_string::<GeometricTransformMatrix>(&GeometricTransformMatrix::default()).unwrap()
     }
+
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_apply))]
+    pub fn geo_transform_simple_apply(gts: &str, coords: &str) -> String {
+        let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
+        let coords = serde_json::from_str::<MAHCoords>(coords).unwrap();
+        serde_json::to_string::<MAHCoords>(&gts.apply(&coords)).unwrap()
+    }
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_inverse))]
+    pub fn geo_transform_simple_inverse(gts: &str, coords: &str) -> String {
+        let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
+        let coords = serde_json::from_str::<MAHCoords>(coords).unwrap();
+        serde_json::to_string::<MAHCoords>(&gts.inverse(&coords)).unwrap()
+    }
 }
 
 pub type PatternEvalWasmPublicTypes = (MidAirHapticsAnimationFileFormat, PatternEvaluatorParameters, BrushAtAnimLocalTime, Vec<BrushAtAnimLocalTime>);
@@ -601,7 +615,7 @@ impl GeometricTransformMatrix {
 }
 
 impl GeometricTransformsSimple {
-    fn apply(&self, coords: &MAHCoords) -> MAHCoords {
+    pub fn apply(&self, coords: &MAHCoords) -> MAHCoords {
         let mut coords = coords.clone();
 
         //scale
@@ -611,14 +625,39 @@ impl GeometricTransformsSimple {
 
         //rotate
         let radians = self.rotation / 180.0 * std::f64::consts::PI;
-        coords.x = coords.x * radians.cos() - coords.y * radians.sin();
-        coords.y = coords.x * radians.sin() + coords.y * radians.cos();
-        coords.z = coords.z;
+        coords = MAHCoords {
+            x: coords.x * radians.cos() - coords.y * radians.sin(),
+            y: coords.x * radians.sin() + coords.y * radians.cos(),
+            z: coords.z,
+        };
 
         //translate
         coords.x = coords.x + self.translate.x;
         coords.y = coords.y + self.translate.y;
         coords.z = coords.z + self.translate.z;
+
+        coords
+    }
+    pub fn inverse(&self, coords: &MAHCoords) -> MAHCoords {
+        let mut coords = coords.clone();
+
+        //translate
+        coords.x = coords.x - self.translate.x;
+        coords.y = coords.y - self.translate.y;
+        coords.z = coords.z - self.translate.z;
+
+        //rotate
+        let radians = self.rotation / 180.0 * std::f64::consts::PI;
+        coords = MAHCoords {
+            x: coords.x * radians.cos() + coords.y * radians.sin(),
+            y: -coords.x * radians.sin() + coords.y * radians.cos(),
+            z: coords.z,
+        };
+
+        //scale
+        coords.x = coords.x / self.scale.x;
+        coords.y = coords.y / self.scale.y;
+        coords.z = coords.z / self.scale.z;
 
         coords
     }
