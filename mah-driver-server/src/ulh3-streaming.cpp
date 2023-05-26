@@ -37,7 +37,7 @@ void ecallback_shim(
         p.x = static_cast<float>(eval_result.coords.x);
         p.y = static_cast<float>(eval_result.coords.y);
         p.z = static_cast<float>(eval_result.coords.z);
-		p.z = 0.1f; // enforce 10cm above device
+		// p.z = 0.1f; // enforce 10cm above device
 
         sample.controlPoint(0).setPosition(p);
         sample.controlPoint(0).setIntensity(static_cast<float>(eval_result.intensity));

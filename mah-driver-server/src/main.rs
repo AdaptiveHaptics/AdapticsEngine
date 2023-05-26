@@ -5,6 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use cxx::CxxVector;
 use pattern_evaluator::BrushAtAnimLocalTime;
+use pattern_evaluator::PatternEvaluator;
 
 mod websocket;
 use websocket::PEWSServerMessage;
@@ -52,10 +53,9 @@ impl From<BrushAtAnimLocalTime> for EvalResult {
     fn from(be: BrushAtAnimLocalTime) -> EvalResult {
         EvalResult {
             coords: EvalCoords {
-                x: be.ul_control_point.coords.x / 1000.0,
-                y: be.ul_control_point.coords.y / 1000.0,
-                // z: be.coords.z / 1000.0,
-                z: 0.1,
+                x: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.x),
+                y: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.y),
+                z: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.z),
             },
             intensity: be.ul_control_point.intensity,
         }

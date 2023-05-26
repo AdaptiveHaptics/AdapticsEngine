@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum DataFormatRevision {
-    #[serde(rename = "0.0.8-alpha.1")] CurrentRevision
+    #[serde(rename = "0.0.9-alpha.1")] CurrentRevision
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
@@ -86,7 +86,7 @@ pub struct GeometricTransformsSimple {
 impl Default for GeometricTransformsSimple {
     fn default() -> Self {
         Self {
-            translate: MAHCoordsDynamic { x: 0.0.into(), y: 0.0.into(), z: 0.0.into() },
+            translate: MAHCoordsDynamic { x: 0.0.into(), y: 0.0.into(), z: 100.0.into() }, // 100mm (~4") is the default distance above the array
             rotation: 0.0.into(),
             scale: MAHScaleTuple { x: 1.0.into(), y: 1.0.into(), z: 1.0.into() },
         }
@@ -156,18 +156,18 @@ pub struct MAHCoordsConst {
 pub enum MAHBrush {
     Circle {
         /// Millimeters
-        radius: f64,
+        radius: MAHDynamicF64,
         /// AM frequency in HZ
-        am_freq: f64
+        am_freq: MAHDynamicF64
     },
     Line {
         /// Millimeters
-        length: f64,
-        thickness: f64,
+        length: MAHDynamicF64,
+        thickness: MAHDynamicF64,
         /// Degrees
-        rotation: f64,
+        rotation: MAHDynamicF64,
         /// AM frequency in HZ
-        am_freq: f64
+        am_freq: MAHDynamicF64
     },
 }
 
@@ -176,8 +176,8 @@ pub enum MAHBrush {
 #[serde(rename_all = "snake_case")]
 // #[ts(export)]
 pub enum MAHIntensity {
-    Constant { value: f64 },
-    Random { min: f64, max: f64 },
+    Constant { value: MAHDynamicF64 },
+    Random { min: MAHDynamicF64, max: MAHDynamicF64 },
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]

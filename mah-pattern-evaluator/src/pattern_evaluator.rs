@@ -22,7 +22,7 @@ pub struct PatternEvaluatorParameters {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-struct HapeV2Coords {
+pub struct HapeV2Coords {
     x: f64,
     y: f64,
     z: f64,
@@ -110,24 +110,28 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_intensity(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> f64 {
+    fn eval_intensity(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, user_parameters: &UserParameters) -> f64 {
         let prev_intensity = prev_kfc.intensity.as_ref();
         let next_intensity = next_kfc.intensity.as_ref();
 
-        fn get_intensity_value(intensity: &MAHIntensity) -> f64 {
+        fn get_intensity_value(intensity: &MAHIntensity, user_parameters: &UserParameters) -> f64 {
             match &intensity {
-                MAHIntensity::Constant { value } => *value,
-                MAHIntensity::Random { min, max } => rand::random::<f64>() * (max - min) + min,
+                MAHIntensity::Constant { value } => value.to_f64(user_parameters),
+                MAHIntensity::Random { min, max } => {
+                    let min_f64 = min.to_f64(user_parameters);
+                    let max_f64 = max.to_f64(user_parameters);
+                    rand::random::<f64>() * (max_f64 - min_f64) + min_f64
+                }
             }
         }
 
         if let (Some(prev_intensity), Some(next_intensity)) = (prev_intensity, next_intensity) {
-            let piv = get_intensity_value(&prev_intensity.pwt.intensity);
-            let niv = get_intensity_value(&next_intensity.pwt.intensity);
+            let piv = get_intensity_value(&prev_intensity.pwt.intensity, user_parameters);
+            let niv = get_intensity_value(&next_intensity.pwt.intensity, user_parameters);
             let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_intensity.time, next_intensity.time, &prev_intensity.pwt.transition);
             pf * piv + nf * niv
         } else if let Some(prev_intensity) = prev_intensity {
-            return get_intensity_value(&prev_intensity.pwt.intensity);
+            return get_intensity_value(&prev_intensity.pwt.intensity, user_parameters);
         } else {
             return 1.0;
         }
@@ -153,21 +157,18 @@ impl PatternEvaluator {
     }
 
     /// converts millimeters to meters
-    fn unit_convert_dist_to_hapev2(mahunit: &f64) -> f64 {
+    pub fn unit_convert_dist_to_hapev2(mahunit: &f64) -> f64 {
         mahunit / 1000.0
+    }
+
+    /// converts millimeters to meters
+    fn unit_convert_dist_from_hapev2(hapev2unit: &f64) -> f64 {
+        hapev2unit * 1000.0
     }
 
     /// converts degrees to radians
     fn unit_convert_rot_to_hapev2(mahunit: &f64) -> f64 {
         mahunit * (std::f64::consts::PI / 180.0)
-    }
-
-    fn coords_convert_to_hapev2(coords: &MAHCoordsConst) -> HapeV2Coords {
-        HapeV2Coords {
-            x: Self::unit_convert_dist_to_hapev2(&coords.x),
-            y: Self::unit_convert_dist_to_hapev2(&coords.y),
-            z: Self::unit_convert_dist_to_hapev2(&coords.z),
-        }
     }
 
     fn get_hapev2_primitive_params_for_brush(brush: &MAHBrush) -> HapeV2PrimitiveParams {
@@ -195,12 +196,12 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_brush_hapev2(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig) -> BrushEvalParams {
-        fn eval_mahbrush(brush: &MAHBrush) -> BrushEvalParams {
+    fn eval_brush_hapev2(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, user_parameters: &UserParameters) -> BrushEvalParams {
+        fn eval_mahbrush(brush: &MAHBrush, user_parameters: &UserParameters) -> BrushEvalParams {
             let primitive_params = PatternEvaluator::get_hapev2_primitive_params_for_brush(brush);
             match brush {
                 MAHBrush::Circle { radius, am_freq } => {
-                    let amplitude = PatternEvaluator::unit_convert_dist_to_hapev2(radius);
+                    let amplitude = PatternEvaluator::unit_convert_dist_to_hapev2(&radius.to_f64(user_parameters));
                     BrushEvalParams {
                         primitive_type: std::mem::discriminant(brush),
                         primitive_params,
@@ -209,13 +210,13 @@ impl PatternEvaluator {
                             x_scale: amplitude,
                             y_scale: amplitude,
                         },
-                        am_freq: *am_freq,
+                        am_freq: am_freq.to_f64(user_parameters),
                     }
                 }
                 MAHBrush::Line { length, thickness, rotation, am_freq } => {
-                    let length = PatternEvaluator::unit_convert_dist_to_hapev2(length);
-                    let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(thickness);
-                    let rotation = PatternEvaluator::unit_convert_rot_to_hapev2(rotation);
+                    let length = PatternEvaluator::unit_convert_dist_to_hapev2(&length.to_f64(user_parameters));
+                    let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(&thickness.to_f64(user_parameters));
+                    let rotation = PatternEvaluator::unit_convert_rot_to_hapev2(&rotation.to_f64(user_parameters));
                     BrushEvalParams {
                         primitive_type: std::mem::discriminant(brush),
                         primitive_params,
@@ -224,7 +225,7 @@ impl PatternEvaluator {
                             x_scale: length,
                             y_scale: thickness,
                         },
-                        am_freq: *am_freq,
+                        am_freq: am_freq.to_f64(user_parameters),
                     }
                 }
             }
@@ -234,8 +235,8 @@ impl PatternEvaluator {
         let next_brush = next_kfc.brush.as_ref();
         match (prev_brush, next_brush) {
             (Some(prev_brush), Some(next_brush)) => {
-                let prev_brush_eval = eval_mahbrush(&prev_brush.pwt.brush);
-                let next_brush_eval = eval_mahbrush(&next_brush.pwt.brush);
+                let prev_brush_eval = eval_mahbrush(&prev_brush.pwt.brush, user_parameters);
+                let next_brush_eval = eval_mahbrush(&next_brush.pwt.brush, user_parameters);
                 if prev_brush_eval.primitive_type == next_brush_eval.primitive_type {
                     let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_brush.time, next_brush.time, &prev_brush.pwt.transition);
                     BrushEvalParams {
@@ -252,8 +253,8 @@ impl PatternEvaluator {
                     prev_brush_eval
                 }
             }
-            (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush),
-            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0, am_freq: 0.0 }),
+            (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush, user_parameters),
+            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into() }, user_parameters),
         }
 
 
@@ -287,8 +288,8 @@ impl PatternEvaluator {
 
         UltraleapControlPoint {
             coords: MAHCoordsConst {
-                x: rx * 1000.0,
-                y: ry * 1000.0,
+                x: Self::unit_convert_dist_from_hapev2(&rx),
+                y: Self::unit_convert_dist_from_hapev2(&ry),
                 z: 0.0,
             },
             intensity,
@@ -311,8 +312,8 @@ impl PatternEvaluator {
         let next_kfc = self.get_next_kf_config(pattern_time);
 
         let coords = Self::eval_coords(pattern_time, &prev_kfc, &next_kfc);
-        let intensity = Self::eval_intensity(pattern_time, &prev_kfc, &next_kfc);
-        let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc);
+        let intensity = Self::eval_intensity(pattern_time, &prev_kfc, &next_kfc, &p.user_parameters);
+        let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc, &p.user_parameters);
 
         // apply intensity_factor
         let intensity = self.mah_animation.pattern_transform.intensity_factor.to_f64(&p.user_parameters) * intensity;
@@ -402,7 +403,7 @@ impl PatternEvaluator {
 
 }
 
-#[cfg(target_arch = "wasm32")]
+// #[cfg(target_arch = "wasm32")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
@@ -436,16 +437,18 @@ impl PatternEvaluator {
 
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_apply))]
-    pub fn geo_transform_simple_apply(gts: &str, coords: &str) -> String {
+    pub fn geo_transform_simple_apply(gts: &str, coords: &str, user_parameters: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
         let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
-        serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords)).unwrap()
+        let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
+        serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords, &user_parameters)).unwrap()
     }
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_inverse))]
-    pub fn geo_transform_simple_inverse(gts: &str, coords: &str) -> String {
+    pub fn geo_transform_simple_inverse(gts: &str, coords: &str, user_parameters: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
         let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
-        serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords)).unwrap()
+        let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
+        serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords, &user_parameters)).unwrap()
     }
 }
 
