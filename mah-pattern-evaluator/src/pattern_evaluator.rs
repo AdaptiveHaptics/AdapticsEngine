@@ -672,11 +672,6 @@ impl MAHDynamicF64 {
     }
 }
 
-impl MAHPercentageDynamic {
-    pub fn to_f64(&self, user_parameters: &UserParameters) -> f64 {
-        self.inner().to_f64(user_parameters) / 100.0
-    }
-}
 
 #[cfg(test)]
 mod test {

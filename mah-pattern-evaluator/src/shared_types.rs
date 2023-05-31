@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum DataFormatRevision {
-    #[serde(rename = "0.0.9-alpha.1")] CurrentRevision
+    #[serde(rename = "0.0.9-alpha.2")] CurrentRevision
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
@@ -96,8 +96,8 @@ impl Default for GeometricTransformsSimple {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PatternTransformation {
     pub geometric_transforms: GeometricTransformsSimple,
-    pub intensity_factor: MAHPercentageDynamic,
-    pub playback_speed: MAHPercentageDynamic,
+    pub intensity_factor: MAHDynamicF64,
+    pub playback_speed: MAHDynamicF64,
 }
 impl Default for PatternTransformation {
     fn default() -> Self {
@@ -114,20 +114,6 @@ pub struct MAHScaleTuple {
     pub x: MAHDynamicF64,
     pub y: MAHDynamicF64,
     pub z: MAHDynamicF64,
-}
-
-/// will parse 100 (%) in JSON exchange format as 1.00 (f64)
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MAHPercentageDynamic(MAHDynamicF64);
-impl From<f64> for MAHPercentageDynamic {
-    fn from(f: f64) -> Self {
-        Self(MAHDynamicF64::F64(f * 100.0))
-    }
-}
-impl MAHPercentageDynamic {
-    pub fn inner(&self) -> &MAHDynamicF64 {
-        &self.0
-    }
 }
 
 /*****              MAH Keyframe primitives              *****/
