@@ -1,5 +1,7 @@
 
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 // use ts_rs::TS;
@@ -11,7 +13,7 @@ use schemars::JsonSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum DataFormatRevision {
-    #[serde(rename = "0.0.9-alpha.2")] CurrentRevision
+    #[serde(rename = "0.0.10-alpha.1")] CurrentRevision
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
@@ -33,6 +35,17 @@ pub struct MidAirHapticsAnimationFileFormat {
     pub keyframes: Vec<MAHKeyframe>,
 
     pub pattern_transform: PatternTransformation,
+
+    pub user_parameter_definitions: UserParameterDefinitions,
+}
+
+pub type UserParameterDefinitions = HashMap<String, MAHUserParameterDefinition>;
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+pub struct MAHUserParameterDefinition {
+    pub default: f64,
+    pub min: f64,
+    pub max: f64,
+    pub step: f64,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]

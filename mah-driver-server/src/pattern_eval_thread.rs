@@ -30,6 +30,7 @@ pub fn pattern_eval_loop(
 		name: "DEFAULT_PATTERN".to_string(),
 		keyframes: vec![],
 		pattern_transform: Default::default(),
+		user_parameter_definitions: HashMap::new(),
 	};
 
 	let mut pattern_eval = PatternEvaluator::new(default_pattern);

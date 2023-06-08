@@ -110,28 +110,28 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_intensity(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, user_parameters: &UserParameters) -> f64 {
+    fn eval_intensity(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, dyn_up_info: &DynUserParamInfo) -> f64 {
         let prev_intensity = prev_kfc.intensity.as_ref();
         let next_intensity = next_kfc.intensity.as_ref();
 
-        fn get_intensity_value(intensity: &MAHIntensity, user_parameters: &UserParameters) -> f64 {
+        fn get_intensity_value(intensity: &MAHIntensity, dyn_up_info: &DynUserParamInfo) -> f64 {
             match &intensity {
-                MAHIntensity::Constant { value } => value.to_f64(user_parameters),
+                MAHIntensity::Constant { value } => value.to_f64(dyn_up_info),
                 MAHIntensity::Random { min, max } => {
-                    let min_f64 = min.to_f64(user_parameters);
-                    let max_f64 = max.to_f64(user_parameters);
+                    let min_f64 = min.to_f64(dyn_up_info);
+                    let max_f64 = max.to_f64(dyn_up_info);
                     rand::random::<f64>() * (max_f64 - min_f64) + min_f64
                 }
             }
         }
 
         if let (Some(prev_intensity), Some(next_intensity)) = (prev_intensity, next_intensity) {
-            let piv = get_intensity_value(&prev_intensity.pwt.intensity, user_parameters);
-            let niv = get_intensity_value(&next_intensity.pwt.intensity, user_parameters);
+            let piv = get_intensity_value(&prev_intensity.pwt.intensity, dyn_up_info);
+            let niv = get_intensity_value(&next_intensity.pwt.intensity, dyn_up_info);
             let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_intensity.time, next_intensity.time, &prev_intensity.pwt.transition);
             pf * piv + nf * niv
         } else if let Some(prev_intensity) = prev_intensity {
-            return get_intensity_value(&prev_intensity.pwt.intensity, user_parameters);
+            return get_intensity_value(&prev_intensity.pwt.intensity, dyn_up_info);
         } else {
             return 1.0;
         }
@@ -196,12 +196,12 @@ impl PatternEvaluator {
         }
     }
 
-    fn eval_brush_hapev2(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, user_parameters: &UserParameters) -> BrushEvalParams {
-        fn eval_mahbrush(brush: &MAHBrush, user_parameters: &UserParameters) -> BrushEvalParams {
+    fn eval_brush_hapev2(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, dyn_up_info: &DynUserParamInfo) -> BrushEvalParams {
+        fn eval_mahbrush(brush: &MAHBrush, dyn_up_info: &DynUserParamInfo) -> BrushEvalParams {
             let primitive_params = PatternEvaluator::get_hapev2_primitive_params_for_brush(brush);
             match brush {
                 MAHBrush::Circle { radius, am_freq } => {
-                    let amplitude = PatternEvaluator::unit_convert_dist_to_hapev2(&radius.to_f64(user_parameters));
+                    let amplitude = PatternEvaluator::unit_convert_dist_to_hapev2(&radius.to_f64(dyn_up_info));
                     BrushEvalParams {
                         primitive_type: std::mem::discriminant(brush),
                         primitive_params,
@@ -210,13 +210,13 @@ impl PatternEvaluator {
                             x_scale: amplitude,
                             y_scale: amplitude,
                         },
-                        am_freq: am_freq.to_f64(user_parameters),
+                        am_freq: am_freq.to_f64(dyn_up_info),
                     }
                 }
                 MAHBrush::Line { length, thickness, rotation, am_freq } => {
-                    let length = PatternEvaluator::unit_convert_dist_to_hapev2(&length.to_f64(user_parameters));
-                    let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(&thickness.to_f64(user_parameters));
-                    let rotation = PatternEvaluator::unit_convert_rot_to_hapev2(&rotation.to_f64(user_parameters));
+                    let length = PatternEvaluator::unit_convert_dist_to_hapev2(&length.to_f64(dyn_up_info));
+                    let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(&thickness.to_f64(dyn_up_info));
+                    let rotation = PatternEvaluator::unit_convert_rot_to_hapev2(&rotation.to_f64(dyn_up_info));
                     BrushEvalParams {
                         primitive_type: std::mem::discriminant(brush),
                         primitive_params,
@@ -225,7 +225,7 @@ impl PatternEvaluator {
                             x_scale: length,
                             y_scale: thickness,
                         },
-                        am_freq: am_freq.to_f64(user_parameters),
+                        am_freq: am_freq.to_f64(dyn_up_info),
                     }
                 }
             }
@@ -235,8 +235,8 @@ impl PatternEvaluator {
         let next_brush = next_kfc.brush.as_ref();
         match (prev_brush, next_brush) {
             (Some(prev_brush), Some(next_brush)) => {
-                let prev_brush_eval = eval_mahbrush(&prev_brush.pwt.brush, user_parameters);
-                let next_brush_eval = eval_mahbrush(&next_brush.pwt.brush, user_parameters);
+                let prev_brush_eval = eval_mahbrush(&prev_brush.pwt.brush, dyn_up_info);
+                let next_brush_eval = eval_mahbrush(&next_brush.pwt.brush, dyn_up_info);
                 if prev_brush_eval.primitive_type == next_brush_eval.primitive_type {
                     let (pf, nf) = Self::perform_transition_interp(pattern_time, prev_brush.time, next_brush.time, &prev_brush.pwt.transition);
                     BrushEvalParams {
@@ -253,8 +253,8 @@ impl PatternEvaluator {
                     prev_brush_eval
                 }
             }
-            (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush, user_parameters),
-            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into() }, user_parameters),
+            (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush, dyn_up_info),
+            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into() }, dyn_up_info),
         }
 
 
@@ -297,12 +297,13 @@ impl PatternEvaluator {
     }
 
     pub fn eval_path_at_anim_local_time(&self, p: &PatternEvaluatorParameters, nep: &NextEvalParams) -> PathAtAnimLocalTime {
+        let dyn_up_info = UserParametersConstrained::from(&p.user_parameters, &self.mah_animation.user_parameter_definitions);
 
         // apply playback_speed
         let (pattern_time, nep) = {
             let last_eval_pattern_time = nep.last_eval_pattern_time;
             let delta_time = p.time + nep.time_offset - last_eval_pattern_time;
-            let delta_for_speed = self.mah_animation.pattern_transform.playback_speed.to_f64(&p.user_parameters) * delta_time;
+            let delta_for_speed = self.mah_animation.pattern_transform.playback_speed.to_f64(&dyn_up_info) * delta_time;
             let time_offset = nep.time_offset + delta_for_speed - delta_time;
             let pattern_time = p.time + time_offset;
             (pattern_time, NextEvalParams { time_offset, last_eval_pattern_time })
@@ -312,13 +313,13 @@ impl PatternEvaluator {
         let next_kfc = self.get_next_kf_config(pattern_time);
 
         let coords = Self::eval_coords(pattern_time, &prev_kfc, &next_kfc);
-        let intensity = Self::eval_intensity(pattern_time, &prev_kfc, &next_kfc, &p.user_parameters);
-        let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc, &p.user_parameters);
+        let intensity = Self::eval_intensity(pattern_time, &prev_kfc, &next_kfc, &dyn_up_info);
+        let brush = Self::eval_brush_hapev2(pattern_time, &prev_kfc, &next_kfc, &dyn_up_info);
 
         // apply intensity_factor
-        let intensity = self.mah_animation.pattern_transform.intensity_factor.to_f64(&p.user_parameters) * intensity;
+        let intensity = self.mah_animation.pattern_transform.intensity_factor.to_f64(&dyn_up_info) * intensity;
 
-        let coords = self.mah_animation.pattern_transform.geometric_transforms.apply(&coords, &p.user_parameters);
+        let coords = self.mah_animation.pattern_transform.geometric_transforms.apply(&coords, &dyn_up_info);
 
         // apply final geometric transform (intended for hand tracking etc.)
         let coords = p.geometric_transform.projection_transform(&coords);
@@ -437,18 +438,22 @@ impl PatternEvaluator {
 
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_apply))]
-    pub fn geo_transform_simple_apply(gts: &str, coords: &str, user_parameters: &str) -> String {
+    pub fn geo_transform_simple_apply(gts: &str, coords: &str, user_parameters: &str, user_parameter_definitions: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
         let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
         let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
-        serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords, &user_parameters)).unwrap()
+        let user_parameter_definitions = serde_json::from_str::<UserParameterDefinitions>(user_parameter_definitions).unwrap();
+        let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
+        serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords, &dyn_up_info)).unwrap()
     }
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_inverse))]
-    pub fn geo_transform_simple_inverse(gts: &str, coords: &str, user_parameters: &str) -> String {
+    pub fn geo_transform_simple_inverse(gts: &str, coords: &str, user_parameters: &str, user_parameter_definitions: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
         let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
         let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
-        serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords, &user_parameters)).unwrap()
+        let user_parameter_definitions = serde_json::from_str::<UserParameterDefinitions>(user_parameter_definitions).unwrap();
+        let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
+        serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords, &dyn_up_info)).unwrap()
     }
 }
 
@@ -615,16 +620,16 @@ impl GeometricTransformMatrix {
 }
 
 impl GeometricTransformsSimple {
-    pub fn apply(&self, coords: &MAHCoordsConst, up: &UserParameters) -> MAHCoordsConst {
+    fn apply(&self, coords: &MAHCoordsConst, dyn_up_info: &DynUserParamInfo) -> MAHCoordsConst {
         let mut coords = coords.clone();
 
         //scale
-        coords.x *= self.scale.x.to_f64(up);
-        coords.y *= self.scale.y.to_f64(up);
-        coords.z *= self.scale.z.to_f64(up);
+        coords.x *= self.scale.x.to_f64(dyn_up_info);
+        coords.y *= self.scale.y.to_f64(dyn_up_info);
+        coords.z *= self.scale.z.to_f64(dyn_up_info);
 
         //rotate
-        let radians = self.rotation.to_f64(up) / 180.0 * std::f64::consts::PI;
+        let radians = self.rotation.to_f64(dyn_up_info) / 180.0 * std::f64::consts::PI;
         coords = MAHCoordsConst {
             x: coords.x * radians.cos() - coords.y * radians.sin(),
             y: coords.x * radians.sin() + coords.y * radians.cos(),
@@ -632,22 +637,22 @@ impl GeometricTransformsSimple {
         };
 
         //translate
-        coords.x += self.translate.x.to_f64(up);
-        coords.y += self.translate.y.to_f64(up);
-        coords.z += self.translate.z.to_f64(up);
+        coords.x += self.translate.x.to_f64(dyn_up_info);
+        coords.y += self.translate.y.to_f64(dyn_up_info);
+        coords.z += self.translate.z.to_f64(dyn_up_info);
 
         coords
     }
-    pub fn inverse(&self, coords: &MAHCoordsConst, up: &UserParameters) -> MAHCoordsConst {
+    fn inverse(&self, coords: &MAHCoordsConst, dyn_up_info: &DynUserParamInfo) -> MAHCoordsConst {
         let mut coords = coords.clone();
 
         //translate
-        coords.x -= self.translate.x.to_f64(up);
-        coords.y -= self.translate.y.to_f64(up);
-        coords.z -= self.translate.z.to_f64(up);
+        coords.x -= self.translate.x.to_f64(dyn_up_info);
+        coords.y -= self.translate.y.to_f64(dyn_up_info);
+        coords.z -= self.translate.z.to_f64(dyn_up_info);
 
         //rotate
-        let radians = self.rotation.to_f64(up) / 180.0 * std::f64::consts::PI;
+        let radians = self.rotation.to_f64(dyn_up_info) / 180.0 * std::f64::consts::PI;
         coords = MAHCoordsConst {
             x: coords.x * radians.cos() + coords.y * radians.sin(),
             y: -coords.x * radians.sin() + coords.y * radians.cos(),
@@ -655,18 +660,34 @@ impl GeometricTransformsSimple {
         };
 
         //scale
-        coords.x /= self.scale.x.to_f64(up);
-        coords.y /= self.scale.y.to_f64(up);
-        coords.z /= self.scale.z.to_f64(up);
+        coords.x /= self.scale.x.to_f64(dyn_up_info);
+        coords.y /= self.scale.y.to_f64(dyn_up_info);
+        coords.z /= self.scale.z.to_f64(dyn_up_info);
 
         coords
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UserParametersConstrained(HashMap<String, f64>);
+impl UserParametersConstrained {
+    fn from(user_parameters: &UserParameters, definitions: &UserParameterDefinitions) -> Self {
+        let mut constrained_user_parameters = HashMap::new();
+        for (name, def) in definitions {
+            if let Some(value) = user_parameters.get(name) {
+                constrained_user_parameters.insert(name.clone(), value.clamp(def.min, def.max));
+            } else {
+                constrained_user_parameters.insert(name.clone(), def.default.clamp(def.min, def.max));
+            }
+        }
+        Self(constrained_user_parameters)
+    }
+}
+type DynUserParamInfo = UserParametersConstrained;
 impl MAHDynamicF64 {
-    pub fn to_f64(&self, user_parameters: &UserParameters) -> f64 {
+    fn to_f64(&self, dyn_up_info: &DynUserParamInfo) -> f64 {
         *match self {
-            Self::Dynamic(param) => user_parameters.get(param).unwrap_or(&0.0),
+            Self::Dynamic(param) => dyn_up_info.0.get(param).unwrap_or(&0.0),
             Self::F64(f) => f,
         }
     }
