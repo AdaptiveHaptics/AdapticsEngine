@@ -43,8 +43,8 @@ pub type UserParameterDefinitions = HashMap<String, MAHUserParameterDefinition>;
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 pub struct MAHUserParameterDefinition {
     pub default: f64,
-    pub min: f64,
-    pub max: f64,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
     pub step: f64,
 }
 

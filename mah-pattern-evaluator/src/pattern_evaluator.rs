@@ -674,11 +674,12 @@ impl UserParametersConstrained {
     fn from(user_parameters: &UserParameters, definitions: &UserParameterDefinitions) -> Self {
         let mut constrained_user_parameters = HashMap::new();
         for (name, def) in definitions {
-            if let Some(value) = user_parameters.get(name) {
-                constrained_user_parameters.insert(name.clone(), value.clamp(def.min, def.max));
-            } else {
-                constrained_user_parameters.insert(name.clone(), def.default.clamp(def.min, def.max));
-            }
+            constrained_user_parameters.insert(name.clone(), user_parameters.get(name)
+                .unwrap_or(&def.default).clamp(
+                    def.min.unwrap_or(f64::NEG_INFINITY),
+                    def.max.unwrap_or(f64::INFINITY)
+                )
+            );
         }
         Self(constrained_user_parameters)
     }
