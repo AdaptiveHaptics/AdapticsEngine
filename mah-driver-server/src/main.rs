@@ -102,6 +102,7 @@ fn main() {
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded::<Vec<BrushAtAnimLocalTime>>(0);
     let (network_send_tx, network_send_rx) = crossbeam_channel::bounded(1);
 
+    let (its_over_tx, its_over_rx) = crossbeam_channel::bounded(1);
 
     // thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
 
@@ -159,13 +160,18 @@ fn main() {
                     Ok(mut ulh_streaming_controller) => {
                         ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
                         println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
+                        its_over_rx.recv().unwrap();
+                        println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
+                        drop(ulh_streaming_controller);
                     },
                     Err(e) => {
                         println!("error creating ulhaptics streaming controller: {}", e);
                         let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
                         drop(cb);
                     }
-                }
+                };
+
+
             })
             .unwrap())
     } else {
@@ -219,7 +225,7 @@ fn main() {
                     }
                 }
 
-                //println!("mock streaming thread exiting...");
+                // println!("mock streaming thread exiting...");
             })
             .unwrap())
      };
@@ -239,6 +245,7 @@ fn main() {
 
 
     pattern_eval_handle.join().unwrap();
+    its_over_tx.send(true).unwrap();
     if let Some(h) = ulh_streaming_handle_opt { h.join().unwrap() }
     if let Some(h) = net_handle_opt { h.join().unwrap() }
 }

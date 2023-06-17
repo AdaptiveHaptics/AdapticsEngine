@@ -380,9 +380,9 @@ impl PatternEvaluator {
         let device_frequency = 20000; //20khz
 
         let path_eval_base = self.eval_path_at_anim_local_time(p, nep);
-
         let bp = &path_eval_base.brush.primitive_params;
         let max_t_in_ms = 1000.0 * bp.max_t / (bp.draw_frequency * 2.0 * std::f64::consts::PI); //solve `time / 1000 * draw_frequency * 2Pi = max_t` equation for time
+        // let max_t_in_ms = 16.6; // ~60fps, above calculation usually evaluates to ~10ms
 
         let device_step = 1000.0 / device_frequency as f64;
         let min_step = max_t_in_ms / max_number_of_points as f64;

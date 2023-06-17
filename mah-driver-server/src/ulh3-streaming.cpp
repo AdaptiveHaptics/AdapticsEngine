@@ -11,6 +11,39 @@ void unwrap(result<void> res) {
 }
 
 
+
+
+// struct CircleData
+// {
+//     double radius;
+//     double control_point_speed;
+//     float control_point_intensity;
+//     LocalTimePoint start_time;
+// };
+// CircleData circle_data_g{ 0.02, 8.0, 1.0, LocalTimeClock::now() };
+// CircleData* circle_data_ptr = &circle_data_g;
+// void circle_callback_fordebug(const StreamingEmitter& emitter,
+//     OutputInterval& interval,
+//     const LocalTimePoint& submission_deadline)
+// {
+//     printf(".");
+//     auto circle_data = circle_data_ptr;
+//     double angular_frequency = circle_data->control_point_speed / circle_data->radius;
+
+//     for (auto& sample : interval) {
+//         std::chrono::duration<double> t = sample - circle_data->start_time;
+//         double angle = t.count() * angular_frequency;
+
+//         Vector3 p;
+//         p.x = static_cast<float>(std::cos(angle) * circle_data->radius);
+//         p.y = static_cast<float>(std::sin(angle) * circle_data->radius);
+//         p.z = 0.2f;
+
+//         sample.controlPoint(0).setPosition(p);
+//         sample.controlPoint(0).setIntensity(circle_data->control_point_intensity);
+//     }
+// }
+
 using JavascriptMilliseconds = std::chrono::duration<double, std::milli>;
 
 void ecallback_shim(
@@ -19,19 +52,23 @@ void ecallback_shim(
     OutputInterval& interval,
     const LocalTimePoint& submission_deadline
 ) {
-
+	// printf(":");
+    // return circle_callback_fordebug(emitter, interval, submission_deadline);
 	std::vector<double> time_arr_ms;
+	std::vector<Ultraleap::Haptics::TimePointOnOutputInterval> sample_arr; // apparently we cant iterate through interval twice (i swear we used to be able to)
     for (auto& sample : interval) {
+		sample_arr.push_back(sample);
 		JavascriptMilliseconds msd = sample.time_since_epoch(); //It's important to use double to prevent precision issues with long run times
         auto ms = msd.count();
 		time_arr_ms.push_back(ms);
     }
+
 	std::vector<EvalResult> eval_results_arr(time_arr_ms.size());
 
 	cb_func(time_arr_ms, eval_results_arr);
 
 	int i = 0;
-	for (auto& sample : interval) {
+	for (auto& sample : sample_arr) {
 		auto eval_result = eval_results_arr.at(i);
 		Vector3 p;
         p.x = static_cast<float>(eval_result.coords.x);
@@ -52,7 +89,6 @@ void ecallback_shim(
 	}
 }
 
-
 ULHStreamingController::ULHStreamingController(float callback_rate, rust_ecallback cb_func) : lib(), emitter((unwrap(lib.connect()), lib)) {
     auto device_result = lib.findDevice(DeviceFeatures::StreamingHaptics);
     throw_if_error(device_result);
@@ -68,9 +104,11 @@ ULHStreamingController::ULHStreamingController(float callback_rate, rust_ecallba
 }
 
 void ULHStreamingController::pause_emitter() {
+    printf("pause_emitter\n");
 	unwrap(emitter.pause());
 }
 void ULHStreamingController::resume_emitter() {
+    printf("resume_emitter\n");
 	unwrap(emitter.resume());
 }
 size_t ULHStreamingController::getMissedCallbackIterations() const {
@@ -80,6 +118,7 @@ size_t ULHStreamingController::getMissedCallbackIterations() const {
 }
 
 ULHStreamingController::~ULHStreamingController() {
+    printf("ULHStreamingController destructor\n");
 	unwrap(emitter.stop());
 	unwrap(lib.disconnect()); // unnecessary
 }
