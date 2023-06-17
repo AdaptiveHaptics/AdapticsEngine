@@ -9,8 +9,11 @@ use crate::*;
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
 pub enum PatternEvalUpdate {
+	#[serde(rename="update_pattern")]
     Pattern{ pattern_json: String },
+	#[serde(rename="update_playstart")]
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
+	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },
 }
 
