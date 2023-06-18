@@ -331,7 +331,8 @@ impl PatternEvaluator {
             if nep.last_eval_pattern_time <= *kf.time() {
                 let cjumps = kf.cjumps()?;
                 for cjump in cjumps {
-                    if cjump.condition.eval(p) {
+                    // println!("dyn_up_info: {:?}", dyn_up_info);
+                    if cjump.condition.eval(&dyn_up_info) {
                         return Some(NextEvalParams {
                             last_eval_pattern_time: cjump.jump_to,
                             time_offset: cjump.jump_to - p.time,
@@ -587,8 +588,8 @@ impl MAHKeyframe {
 }
 
 impl MAHCondition {
-    pub fn eval(&self, params: &PatternEvaluatorParameters) -> bool {
-        if let Some(user_param_value) = params.user_parameters.get(&self.parameter) {
+    fn eval(&self, dyn_up_info: &DynUserParamInfo) -> bool {
+        if let Some(user_param_value) = dyn_up_info.0.get(&self.parameter) {
             match self.operator {
                 MAHConditionalOperator::Lt {  } => user_param_value < &self.value,
                 MAHConditionalOperator::LtEq {  } => user_param_value <= &self.value,
