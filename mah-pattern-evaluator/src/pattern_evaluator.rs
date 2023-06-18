@@ -46,7 +46,7 @@ impl PatternEvaluator {
         Self { mah_animation }
     }
 
-    fn get_kf_config_type(&self, t: f64, prev: bool) -> MAHKeyframeConfig {
+    fn get_kf_config_type(&self, t: MAHTime, prev: bool) -> MAHKeyframeConfig {
         let mut kfc = MAHKeyframeConfig::default();
         macro_rules! update_kfc {
             ($kf:ident, $prop:ident ?) => { // update time and value (if optional prop present)
@@ -88,11 +88,22 @@ impl PatternEvaluator {
         }
         kfc
     }
-    fn get_prev_kf_config(&self, t: f64) -> MAHKeyframeConfig {
+    fn get_prev_kf_config(&self, t: MAHTime) -> MAHKeyframeConfig {
         self.get_kf_config_type(t, true)
     }
-    fn get_next_kf_config(&self, t: f64) -> MAHKeyframeConfig {
+    fn get_next_kf_config(&self, t: MAHTime) -> MAHKeyframeConfig {
         self.get_kf_config_type(t, false)
+    }
+
+    fn get_cjumps_from_last_eval_to_current(&self, last_eval_pattern_time: MAHTime, pattern_time: MAHTime) -> impl Iterator<Item=&ConditionalJump> {
+        self.mah_animation.keyframes.iter().filter_map(move |kf| {
+            let kf_time = kf.time();
+            if &last_eval_pattern_time < kf_time && kf_time <= &pattern_time {
+                kf.cjumps()
+            } else {
+                None
+            }
+        }).flatten()
     }
 
     /// returns (pf, nf) where pf is the factor for the previous keyframe and nf is the factor for the next keyframe
@@ -309,6 +320,23 @@ impl PatternEvaluator {
             (pattern_time, NextEvalParams { time_offset, last_eval_pattern_time })
         };
 
+        // apply (one) cjump
+        let (pattern_time, nep) = {
+            let nep = self.get_cjumps_from_last_eval_to_current(nep.last_eval_pattern_time, pattern_time)
+                .find(|cjump| cjump.condition.eval(&dyn_up_info))
+                .map_or(NextEvalParams {
+                    last_eval_pattern_time: pattern_time,
+                    time_offset: nep.time_offset,
+                }, |cjump| {
+                    NextEvalParams {
+                        last_eval_pattern_time: cjump.jump_to,
+                        time_offset: cjump.jump_to - p.time,
+                    }
+                });
+            let pattern_time = p.time + nep.time_offset;
+            (pattern_time, nep)
+        };
+
         let prev_kfc = self.get_prev_kf_config(pattern_time);
         let next_kfc = self.get_next_kf_config(pattern_time);
 
@@ -326,31 +354,11 @@ impl PatternEvaluator {
 
         let stop = matches!(prev_kfc.keyframe, Some(MAHKeyframe::Stop(_)));
 
-        let next_eval_params = (|| {
-            let kf = prev_kfc.keyframe?;
-            if nep.last_eval_pattern_time <= *kf.time() {
-                let cjumps = kf.cjumps()?;
-                for cjump in cjumps {
-                    // println!("dyn_up_info: {:?}", dyn_up_info);
-                    if cjump.condition.eval(&dyn_up_info) {
-                        return Some(NextEvalParams {
-                            last_eval_pattern_time: cjump.jump_to,
-                            time_offset: cjump.jump_to - p.time,
-                        })
-                    }
-                }
-            }
-            None
-        })().unwrap_or(NextEvalParams {
-            last_eval_pattern_time: pattern_time,
-            time_offset: nep.time_offset,
-        });
-
         PathAtAnimLocalTime {
             ul_control_point: UltraleapControlPoint { coords, intensity, },
             pattern_time,
             stop,
-            next_eval_params,
+            next_eval_params: nep,
             brush,
         }
     }
