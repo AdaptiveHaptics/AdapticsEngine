@@ -8,7 +8,7 @@
             "name": "Launch websocket driver",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target/debug/xk-web-midair-haptic-driver-rust.exe",
+            "program": "${workspaceFolder}/target/debug/adaptics-engine.exe",
             "args": [],
             "cwd": "${workspaceFolder}",
             "environment": [],

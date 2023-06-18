@@ -3,6 +3,22 @@
 version = 3
 
 [[package]]
+name = "adaptics-engine"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "clap",
+ "crossbeam-channel",
+ "cxx",
+ "cxx-build",
+ "mah-pattern-evaluator",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha1",
+]
+
+[[package]]
 name = "anstream"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -828,19 +844,3 @@ name = "windows_x86_64_msvc"
 version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
-
-[[package]]
-name = "xk-web-midair-haptic-driver-rust"
-version = "0.1.0"
-dependencies = [
- "base64",
- "clap",
- "crossbeam-channel",
- "cxx",
- "cxx-build",
- "mah-pattern-evaluator",
- "rand",
- "serde",
- "serde_json",
- "sha1",
-]

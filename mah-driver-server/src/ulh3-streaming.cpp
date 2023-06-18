@@ -2,7 +2,7 @@
 
 #include "ulh3-streaming.h"
 
-#include "xk-web-midair-haptic-driver-rust/src/main.rs.h"
+#include "adaptics-engine/src/main.rs.h"
 
 
 #define throw_if_error(res) if (!res) { throw std::exception(res.error().message()); }
