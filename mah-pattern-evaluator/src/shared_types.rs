@@ -99,7 +99,7 @@ pub struct GeometricTransformsSimple {
 impl Default for GeometricTransformsSimple {
     fn default() -> Self {
         Self {
-            translate: MAHCoordsDynamic { x: 0.0.into(), y: 0.0.into(), z: 100.0.into() }, // 100mm (~4") is the default distance above the array
+            translate: MAHCoordsDynamic { x: 0.0.into(), y: 0.0.into(), z: 200.0.into() }, // 200mm (~8") is the default distance above the array (playback at 100mm feels less intense)
             rotation: 0.0.into(),
             scale: MAHScaleTuple { x: 1.0.into(), y: 1.0.into(), z: 1.0.into() },
         }
