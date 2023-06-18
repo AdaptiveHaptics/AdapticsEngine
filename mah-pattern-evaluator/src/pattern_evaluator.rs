@@ -672,7 +672,7 @@ impl GeometricTransformsSimple {
 struct UserParametersConstrained(HashMap<String, f64>);
 impl UserParametersConstrained {
     fn from(user_parameters: &UserParameters, definitions: &UserParameterDefinitions) -> Self {
-        let mut constrained_user_parameters = HashMap::new();
+        let mut constrained_user_parameters = user_parameters.clone(); // use user_parameters as base, to keep params that do not have an explicit definition
         for (name, def) in definitions {
             constrained_user_parameters.insert(name.clone(), user_parameters.get(name)
                 .unwrap_or(&def.default).clamp(
