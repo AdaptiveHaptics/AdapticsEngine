@@ -483,14 +483,14 @@ struct MAHKeyframeConfig<'a> {
     keyframe: Option<MAHKeyframe>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct UltraleapControlPoint {
     pub coords: MAHCoordsConst,
     // pub direction: MAHCoords,
     pub intensity: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PathAtAnimLocalTime {
     pub ul_control_point: UltraleapControlPoint,
     pub pattern_time: MAHTime,
@@ -499,7 +499,7 @@ pub struct PathAtAnimLocalTime {
     brush: BrushEvalParams,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct BrushAtAnimLocalTime {
     pub ul_control_point: UltraleapControlPoint,
     pub pattern_time: MAHTime,
@@ -507,7 +507,7 @@ pub struct BrushAtAnimLocalTime {
     pub next_eval_params: NextEvalParams,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct NextEvalParams {
     last_eval_pattern_time: MAHTime,
     time_offset: MAHTime,
@@ -521,7 +521,7 @@ impl Default for NextEvalParams {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(non_snake_case)]
 struct HapeV2PrimitiveParams {
     A: f64,
@@ -533,7 +533,7 @@ struct HapeV2PrimitiveParams {
     max_t: f64,
     draw_frequency: f64,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct BrushEvalParams {
     primitive_type: Discriminant<MAHBrush>,
     primitive_params: HapeV2PrimitiveParams,
@@ -541,7 +541,7 @@ struct BrushEvalParams {
     /// AM frequency in HZ
     am_freq: f64,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Painter {
     z_rot: f64,
     x_scale: f64,
@@ -705,45 +705,149 @@ impl MAHDynamicF64 {
 
 
 #[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-    use std::time::Duration;
-    use std::time::Instant;
+mod tests {
+    use super::*;
 
-    #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen_test::*;
-
-    use crate::*;
-
-    #[test]
-    fn test_cjump() {
-        let pattern_json_string_raw = r#"{"$DATA_FORMAT":"MidAirHapticsAnimationFileFormat","$REVISION":"0.0.5-alpha.1","name":"test","projection":"plane","update_rate":1,"keyframes":[{"time":0,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-45,"y":-5,"z":0},"transition":{"name":"linear","params":{}}}},{"time":500,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":10,"y":35,"z":0},"transition":{"name":"linear","params":{}}},"cjump":{"condition":{"parameter":"test","operator":{"name":"gt","params":{}},"value":10},"jump_to":4000}},{"time":1000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":50,"y":-5,"z":0},"transition":{"name":"linear","params":{}}},"cjump":{"condition":{"parameter":"a","operator":{"name":"lt","params":{}},"value":0},"jump_to":1.5}},{"time":1250,"type":"pause","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}}},{"time":1750,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":10,"y":-30,"z":0},"transition":{"name":"linear","params":{}}}},{"time":2000,"type":"stop"},{"time":2300,"type":"pause","brush":{"brush":{"name":"circle","params":{"radius":1}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":1}},"transition":{"name":"linear","params":{}}}}]}"#;
-        let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
-        let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::from([("test".to_string(), 12.0)]), geometric_transform: Default::default() };
-        let mut last_nep = NextEvalParams { last_eval_pattern_time: 0.0, time_offset: 0.0 };
-        for i in 0..500 {
-            let time = f64::from(i) * 10.0;
-            pep.time = time;
-            let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
-            if i == 50 {
-                assert!(eval_result.pattern_time == 500.0);
-            }
-            if i == 51 {
-                assert!(eval_result.stop);
-                assert!(eval_result.pattern_time == 4010.0);
-            }
-            last_nep = eval_result.next_eval_params;
+    fn create_test_pattern() -> MidAirHapticsAnimationFileFormat {
+        MidAirHapticsAnimationFileFormat {
+            data_format: MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
+            revision: DataFormatRevision::CurrentRevision,
+            name: "example".to_string(),
+            keyframes: vec![
+                MAHKeyframe::Standard(MAHKeyframeStandard {
+                    time: 0.0,
+                    brush: Some(BrushWithTransition {
+                        brush: MAHBrush::Circle { radius: MAHDynamicF64::F64(10.0), am_freq: MAHDynamicF64::F64(0.0) },
+                        transition: MAHTransition::Linear {  }
+                    }),
+                    intensity: Some(IntensityWithTransition {
+                        intensity: MAHIntensity::Constant { value: MAHDynamicF64::F64(1.0) },
+                        transition: MAHTransition::Linear { },
+                    }),
+                    coords: CoordsWithTransition {
+                        coords: MAHCoordsConst { x: -10.0, y: 0.0, z: 0.0 },
+                        transition: MAHTransition::Linear { },
+                    },
+                    cjumps: vec![],
+                }),
+                MAHKeyframe::Standard(MAHKeyframeStandard {
+                    time: 10.0,
+                    brush: Some(BrushWithTransition {
+                        brush: MAHBrush::Circle { radius: MAHDynamicF64::F64(5.0), am_freq: MAHDynamicF64::F64(0.0) },
+                        transition: MAHTransition::Linear {  }
+                    }),
+                    intensity: Some(IntensityWithTransition {
+                        intensity: MAHIntensity::Constant { value: MAHDynamicF64::F64(1.0) },
+                        transition: MAHTransition::Linear { },
+                    }),
+                    coords: CoordsWithTransition {
+                        coords: MAHCoordsConst { x: 10.0, y: 0.0, z: 0.0 },
+                        transition: MAHTransition::Linear { },
+                    },
+                    cjumps: vec![ ConditionalJump {
+                        condition: MAHCondition { parameter: "param1".to_string(), operator: MAHConditionalOperator::Lt {}, value: 3.0 },
+                        jump_to: 1.0,
+                    }],
+                }),
+            ],
+            pattern_transform: Default::default(),
+            user_parameter_definitions: HashMap::from([
+                ("param1".to_string(), MAHUserParameterDefinition { default: 0.0, min: Some(0.0), max: Some(10.0), step: 1.0 }),
+                ("param2".to_string(), MAHUserParameterDefinition { default: 20.0, min: Some(0.0), max: Some(15.0), step: 15.0 }),
+                ("param3".to_string(), MAHUserParameterDefinition { default: 0.0, min: Some(0.0), max: Some(10.0), step: -500.0 }),
+                ("param4".to_string(), MAHUserParameterDefinition { default: 75.0, min: Some(-100.0), max: Some(50.0), step: 13.0 }),
+                ("param5".to_string(), MAHUserParameterDefinition { default: 1.0, min: Some(0.0), max: Some(4.0), step: 0.05 }),
+            ]),
         }
     }
 
+    fn create_test_pattern_json() -> String {
+        serde_json::to_string(&create_test_pattern()).unwrap()
+    }
 
     #[test]
-    #[ignore]
+    fn test_constrain_user_params() {
+        let user_parameters = HashMap::from_iter(vec![
+            ("pA".to_string(), 5.0),
+            ("pB".to_string(), 10.0),
+            ("pC".to_string(), 50.0),
+            ("pD".to_string(), -50.0),
+        ]);
+        let user_parameter_definitions = HashMap::from_iter(vec![
+            ("pB".to_string(), MAHUserParameterDefinition { default: 20.0, min: Some(0.0), max: Some(15.0), step: 15.0 }),
+            ("pC".to_string(), MAHUserParameterDefinition { default: 0.0, min: Some(0.0), max: Some(10.0), step: -500.0 }),
+            ("pD".to_string(), MAHUserParameterDefinition { default: 0.0, min: Some(0.0), max: Some(10.0), step: 1.2048790 }),
+            ("pE".to_string(), MAHUserParameterDefinition { default: 12.0001, min: None, max: None, step: 0.05 }),
+        ]);
+        let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
+        // assert_eq!(dyn_up_info.0.len(), 5);
+        assert_eq!(dyn_up_info.0["pA"], 5.0);
+        assert_eq!(dyn_up_info.0["pB"], 10.0);
+        assert_eq!(dyn_up_info.0["pC"], 10.0);
+        assert_eq!(dyn_up_info.0["pD"], 0.0);
+        assert_eq!(dyn_up_info.0["pE"], 12.0001);
+    }
+
+    #[test]
+    fn test_mah_condition_eval() {
+        let dyn_up_info = UserParametersConstrained(HashMap::from_iter(vec![("pA".to_string(), 2.0)]));
+        let cond = MAHCondition { parameter: "pA".to_string(), operator: MAHConditionalOperator::Lt {}, value: 3.0 };
+        assert!(cond.eval(&dyn_up_info));
+    }
+
+    #[test]
+    fn test_geometric_transform_matrix_affine_transform() {
+        let matrix = GeometricTransformMatrix([
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 2.0],
+            [0.0, 0.0, 1.0, 3.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        let coords = MAHCoordsConst { x: 1.0, y: 2.0, z: 3.0 };
+        let expected = MAHCoordsConst { x: 2.0, y: 4.0, z: 6.0 };
+        assert_eq!(matrix.projection_transform(&coords), expected);
+    }
+
+    #[test]
+    fn test_basic_pattern() {
+        let pattern_eval = PatternEvaluator::new_from_json_string(&create_test_pattern_json());
+        let p = PatternEvaluatorParameters {
+            time: 0.0,
+            user_parameters: HashMap::from_iter(vec![
+                ("pA".to_string(), 2.0),
+                ("pB".to_string(), 15.0),
+            ]),
+            geometric_transform: GeometricTransformMatrix::default(),
+        };
+        let nep = NextEvalParams::default();
+        let eval_res = pattern_eval.eval_path_at_anim_local_time(&p, &nep);
+
+        let expected_brush = MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into() };
+        let primitive = PatternEvaluator::get_hapev2_primitive_params_for_brush(&expected_brush);
+        assert_eq!(eval_res, PathAtAnimLocalTime {
+            ul_control_point: UltraleapControlPoint { coords: MAHCoordsConst { x: -10.0, y: 0.0, z: 200.0 }, intensity: 1.0 },
+            pattern_time: 0.0,
+            stop: false,
+            next_eval_params: NextEvalParams { time_offset: 0.0, last_eval_pattern_time: 0.0 },
+            brush: BrushEvalParams {
+                primitive_type: std::mem::discriminant(&expected_brush),
+                primitive_params: primitive,
+                painter: Painter { z_rot: 0.0, x_scale: 0.01, y_scale: 0.01 },
+                am_freq: 0.0,
+            }
+        });
+    }
+
+
+    use std::time::Duration;
+    use std::time::Instant;
+
+    #[test]
+    #[ignore="bench"]
     fn bench() {
         let warmup_iterations = 50;
         let mut max_time = Duration::default();
-        let pattern_json_string_raw = "{\"$DATA_FORMAT\":\"MidAirHapticsAnimationFileFormat\",\"$REVISION\":\"0.0.4-alpha.1\",\"name\":\"test\",\"projection\":\"plane\",\"update_rate\":1,\"keyframes\":[{\"time\":0,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-60,\"y\":-40,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":500,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":10}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":5,\"y\":65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":1000,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2250,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-5,\"y\":-65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":2350,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2425,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":1,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2500,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":3750,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":360}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":50,\"y\":0,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}}]}";
-        let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
+        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json());
         for o in 0..3000 {
             if o == warmup_iterations {
                 println!("Warmup done, starting benchmark..");
@@ -774,10 +878,10 @@ mod test {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn test() {
+    #[ignore="bench"]
+    fn benchwasm() {
         let warmup_iterations = 5;
-        let pattern_json_string_raw = "{\"$DATA_FORMAT\":\"MidAirHapticsAnimationFileFormat\",\"$REVISION\":\"0.0.4-alpha.1\",\"name\":\"test\",\"projection\":\"plane\",\"update_rate\":1,\"keyframes\":[{\"time\":0,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-60,\"y\":-40,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":500,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":10}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":5,\"y\":65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":1000,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2250,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":15}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":-5,\"y\":-65,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}},{\"time\":2350,\"brush\":{\"brush\":{\"name\":\"circle\",\"params\":{\"radius\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2425,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":1,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":2500,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":0}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"pause\"},{\"time\":3750,\"brush\":{\"brush\":{\"name\":\"line\",\"params\":{\"length\":5,\"thickness\":1,\"rotation\":360}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"intensity\":{\"intensity\":{\"name\":\"constant\",\"params\":{\"value\":1}},\"transition\":{\"name\":\"linear\",\"params\":{}}},\"type\":\"standard\",\"coords\":{\"coords\":{\"x\":50,\"y\":0,\"z\":0},\"transition\":{\"name\":\"linear\",\"params\":{}}}}]}";
-        let pe = PatternEvaluator::new_from_json_string(pattern_json_string_raw);
+        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json());
         for o in 0..3000 {
             if o == warmup_iterations {
                 println!("Warmup done, starting benchmark..");

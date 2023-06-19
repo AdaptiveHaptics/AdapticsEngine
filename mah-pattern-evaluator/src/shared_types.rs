@@ -71,7 +71,7 @@ pub struct MAHCoordsDynamic {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct GeometricTransformMatrix([[f64; 4]; 4]);
+pub struct GeometricTransformMatrix(pub [[f64; 4]; 4]);
 impl Default for GeometricTransformMatrix {
     fn default() -> Self {
         Self([
@@ -136,7 +136,7 @@ pub type MAHTime = f64;
 
 /// x and y are used for the xy coordinate system in the 2d designer.
 /// z is intended to be orthogonal to the phased array
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
 // #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 // #[ts(export)]
 pub struct MAHCoordsConst {
