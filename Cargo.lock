@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "adaptics-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "clap",
@@ -395,7 +395,7 @@ checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 
 [[package]]
 name = "mah-pattern-evaluator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "getrandom",
  "rand",
