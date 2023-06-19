@@ -1,3 +1,4 @@
+use core::panic;
 use std::ops::{Sub, Add};
 use std::pin::Pin;
 use std::sync::Mutex;
@@ -94,7 +95,27 @@ struct MAHServerArgs {
 }
 
 
-fn main() {
+#[derive(Debug)]
+struct TLError {
+    details: String
+}
+impl TLError {
+    fn new(msg: &str) -> TLError {
+        TLError{ details: msg.to_string() }
+    }
+}
+impl std::fmt::Display for TLError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f,"{}",self.details)
+    }
+}
+impl std::error::Error for TLError {
+    fn description(&self) -> &str {
+        &self.details
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
     let cli_args = MAHServerArgs::parse();
 
     let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::unbounded();
@@ -118,7 +139,8 @@ fn main() {
                 network_send_tx,
             );
 
-            res.unwrap();
+            // res.unwrap();
+            res.ok(); // ignore error, only occurs when channel disconnected
 
             println!("pattern-eval thread exiting...");
         })
@@ -127,7 +149,7 @@ fn main() {
     let ulh_streaming_handle_opt = if !cli_args.use_mock_streaming {
         Some(thread::Builder::new()
             .name("ulh-streaming".to_string())
-            .spawn(move || {
+            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send>> {
                 println!("ulhaptics streaming thread starting...");
 
                 type CallbackFn = Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>;
@@ -163,17 +185,15 @@ fn main() {
                         its_over_rx.recv().unwrap();
                         println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
                         drop(ulh_streaming_controller);
+                        Ok(())
                     },
                     Err(e) => {
-                        println!("error creating ulhaptics streaming controller: {}", e);
                         let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
                         drop(cb);
+                        Err(Box::new(TLError::new(&format!("error creating UltraLeap Haptics streaming controller: {}", e))))
                     }
-                };
-
-
-            })
-            .unwrap())
+                }
+            }).unwrap())
     } else {
         println!("using mock streaming");
         Some(thread::Builder::new()
@@ -245,7 +265,10 @@ fn main() {
 
 
     pattern_eval_handle.join().unwrap();
-    its_over_tx.send(true).unwrap();
-    if let Some(h) = ulh_streaming_handle_opt { h.join().unwrap() }
+    its_over_tx.send(true).ok(); // ignore send error (if thread already exited)
+    if let Some(h) = ulh_streaming_handle_opt { h.join().unwrap()?; } // unwrap panics, return errors
+    println!("waiting for net thread...");
     if let Some(h) = net_handle_opt { h.join().unwrap() }
+
+    Ok(())
 }
