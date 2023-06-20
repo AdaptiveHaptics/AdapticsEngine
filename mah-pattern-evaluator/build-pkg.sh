@@ -13,6 +13,8 @@ mkdir "$pkg_dir"
 json_schema_file="$pkg_dir/rs-shared-types.json"
 typescript_defs_file="${json_schema_file%.json}.d.ts"
 
+cargo test
+
 # schemars
 cargo run -- "$json_schema_file"
 node -p "import('json-schema-to-typescript').then(j => j.compileFromFile('$json_schema_file', { additionalProperties: false }).then(ts => fs.writeFileSync('$typescript_defs_file', ts)))"
