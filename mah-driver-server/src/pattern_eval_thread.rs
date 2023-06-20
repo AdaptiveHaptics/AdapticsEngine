@@ -12,6 +12,9 @@ pub enum PatternEvalUpdate {
 	#[serde(rename="update_pattern")]
     Pattern{ pattern_json: String },
 	#[serde(rename="update_playstart")]
+	/// if playstart is 0.0, then the pattern is stopped. Otherwise, it is started at the time given by `now() + playstart_offset` to account for network latency/time desynchronization.
+	/// Network latency would cause `rtt/2` of the pattern playback to be skipped, even if the time between machines is perfectly synced
+	/// Time desynchronization would cause generally unpredicateable playback behavior
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
 	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },
@@ -99,6 +102,7 @@ pub fn pattern_eval_loop(
 						parameters = evaluator_params;
 					},
 					PatternEvalUpdate::Playstart{ playstart, playstart_offset } => {
+						// println!("playstart: {}, playstart_offset: {}", playstart, playstart_offset);
 						next_eval_params = NextEvalParams::default();
 						if playstart == 0.0 {
 							pattern_playstart = None;

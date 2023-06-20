@@ -101,42 +101,45 @@ fn parse_ws_frame_header(frame: &[u8]) -> Option<(bool, WsFrameOpcodes, usize, u
     let opcode = (frameb0 & 0b00001111).try_into().unwrap();
     let rawlen = frame[aii()?] & 0b01111111;
     let payload_length = match rawlen {
-        0..=125 => { rawlen as usize }
+        0..=125 => { (rawlen).try_into().unwrap() } // TODO: close ws with error instead of panic
         126 => {
-            (frame[aii()?] as usize)<<8 | frame[aii()?] as usize
+            ((frame[aii()?] as u16)<<8 | frame[aii()?] as u16).try_into().unwrap()
         }
         127 => {
-            (frame[aii()?] as usize)<<56 |
-            (frame[aii()?] as usize)<<48 |
-            (frame[aii()?] as usize)<<40 |
-            (frame[aii()?] as usize)<<32 |
-            (frame[aii()?] as usize)<<24 |
-            (frame[aii()?] as usize)<<16 |
-            (frame[aii()?] as usize)<<8 |
-            frame[aii()?] as usize
+            (
+                (frame[aii()?] as u64)<<56 |
+                (frame[aii()?] as u64)<<48 |
+                (frame[aii()?] as u64)<<40 |
+                (frame[aii()?] as u64)<<32 |
+                (frame[aii()?] as u64)<<24 |
+                (frame[aii()?] as u64)<<16 |
+                (frame[aii()?] as u64)<<8 |
+                 frame[aii()?] as u64
+            ).try_into().unwrap() // TODO: close ws with error instead of panic
         }
         _ => unreachable!()
     };
     let masking_key: [u8; 4] = [frame[aii()?], frame[aii()?], frame[aii()?], frame[aii()?]];
     Some((fin, opcode, payload_length, i_aii, masking_key))
 }
-fn parse_ws_frame_body(frame: &[u8], payload_length: usize, payload_start_index: usize, masking_key: [u8; 4]) -> Option<Vec<u8>> {
-    let payloadmasked = &frame[payload_start_index..(payload_length+payload_start_index)];
+fn parse_ws_frame_body(frame: &[u8], payload_length: usize, payload_start_index: usize, masking_key: [u8; 4]) -> Option<(usize, Vec<u8>)> {
+    let bytes_read = payload_length+payload_start_index;
+    let payloadmasked = &frame[payload_start_index..bytes_read];
     let mut payload = Vec::with_capacity(payload_length);
     for i in 0..payload_length {
         payload.push(payloadmasked.get(i)? ^ masking_key[i % 4]);
     }
 
-    Some(payload)
+    Some((bytes_read, payload))
 }
-fn parse_ws_frame_full(frame: &[u8]) -> Option<WsFrameRecvd> {
+fn parse_ws_frame_full(frame: &[u8]) -> Option<(usize, WsFrameRecvd)> {
     let (fin, opcode, payload_length, payload_start_index, masking_key) = parse_ws_frame_header(frame)?;
-    let payload = parse_ws_frame_body(frame, payload_length, payload_start_index, masking_key)?;
-    Some(WsFrameRecvd {
+    let (bytes_read, payload) = parse_ws_frame_body(frame, payload_length, payload_start_index, masking_key)?;
+    Some((bytes_read, WsFrameRecvd {
         fin,
         opcode,
         payload
-    })
+    }))
 }
 
 fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclients: &Arc<Mutex<Vec<MAHWebsocket>>>, patteval_call_tx: crossbeam_channel::Sender<PatternEvalUpdate>) {
@@ -168,10 +171,12 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(10)); //make sure this is in wsclients before recving close
             loop {
-                let mut wsframebuf = vec![0; 4096]; //max frame size
+                let mut wsframebuf = vec![0; 65536]; //max frame size (not spec compliant)
+                // std::thread::sleep(Duration::from_millis(1000)); // force frame coalescing in tcp stream
                 let bytes_peeked = tcpstream.peek(&mut wsframebuf).unwrap();
-                if let Some(wsfr) = parse_ws_frame_full(&wsframebuf) {
-                    tcpstream.read_exact(&mut wsframebuf[0..bytes_peeked]).unwrap(); //consume bytes
+                // println!("peeked {} bytes", bytes_peeked);
+                if let Some((bytes_read, wsfr)) = parse_ws_frame_full(&wsframebuf[0..bytes_peeked]) {
+                    tcpstream.read_exact(&mut wsframebuf[0..bytes_read]).unwrap(); //consume bytes
                     if !wsfr.fin { panic!("Not yet implemented"); }
                     match wsfr.opcode {
                         WsFrameOpcodes::Continuation => {}
@@ -179,7 +184,12 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                         WsFrameOpcodes::Binary => todo!("binary ws frames"),
                         WsFrameOpcodes::Close => {
                             println!("closing ws\t'{:#X}'", uid);
-                            wsclients.lock().unwrap().retain(|pwso| pwso.uid != uid);
+                            let mut wsclients = wsclients.lock().unwrap();
+                            wsclients.retain(|pwso| pwso.uid != uid);
+                            if wsclients.len() == 0 {
+                                println!("no more ws clients, stopping playback");
+                                patteval_call_tx.send(PatternEvalUpdate::Playstart { playstart: 0.0, playstart_offset: 0.0 }).unwrap();
+                            }
                             break;
                         }
                         WsFrameOpcodes::Ping => {
