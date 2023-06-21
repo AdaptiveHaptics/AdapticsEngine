@@ -1,6 +1,7 @@
 use std::thread;
 use pattern_evaluator::BrushAtAnimLocalTime;
 
+mod common;
 mod threads;
 use threads::net::websocket;
 use threads::pattern::pattern_eval;
@@ -26,27 +27,6 @@ struct MAHServerArgs {
 
     #[clap(short, long)]
     no_network: bool,
-}
-
-
-#[derive(Debug)]
-struct TLError {
-    details: String
-}
-impl TLError {
-    fn new(msg: &str) -> TLError {
-        TLError{ details: msg.to_string() }
-    }
-}
-impl std::fmt::Display for TLError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f,"{}",self.details)
-    }
-}
-impl std::error::Error for TLError {
-    fn description(&self) -> &str {
-        &self.details
-    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
