@@ -2,7 +2,7 @@
 
 #include "ulh3-streaming.h"
 
-#include "adaptics-engine/src/main.rs.h"
+#include "adaptics-engine/src/threads/streaming/ulhaptics/ffi.rs.h"
 
 
 #define throw_if_error(res) if (!res) { throw std::exception(res.error().message()); }

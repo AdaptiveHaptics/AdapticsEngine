@@ -4,6 +4,15 @@ version = "0.2.1"
 edition = "2021"
 links = "UltraleapHaptics"
 
+
+[[bin]]
+name = "adaptics-engine"
+path = "src/main.rs"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
 [dependencies]
 crossbeam-channel = "0.5"
 mah-pattern-evaluator = { path = "../mah-pattern-evaluator", version = "0.2" }
@@ -19,6 +28,10 @@ sha1 = "0.10"
 base64 = "0.21"
 rand = "0.8"
 clap = { version = "4.1.6", features = ["derive"] }
+
+# for Unity/c# bindings
+interoptopus = "0.14.18"
+interoptopus_backend_csharp = "0.14.18"
 
 [build-dependencies]
 cxx-build = "1.0"

@@ -13,6 +13,7 @@ mkdir "$pkg_dir"
 json_schema_file="$pkg_dir/rs-shared-types.json"
 typescript_defs_file="${json_schema_file%.json}.d.ts"
 
+cargo clippy
 cargo test
 
 # schemars

@@ -20,14 +20,14 @@ fn main() {
 
     if COPY_DLL_TO_OUT_DIR { fs::copy(PathBuf::from(DLL_PATH).join("UltraleapHaptics.dll"), out_dir.join("UltraleapHaptics.dll")).unwrap(); }
 
-    cxx_build::bridge("src/main.rs")
+    cxx_build::bridge("src/threads/streaming/ulhaptics/ffi.rs")
 		.include(HEADER_PATH)
-		.include("./src")
-        .file("src/ulh3-streaming.cpp")
+		.include("./src/threads/streaming/ulhaptics")
+        .file("src/threads/streaming/ulhaptics/ulh3-streaming.cpp")
 		.flag_if_supported("-std=c++20")
         .compile("ulh3-streaming");
 
-    println!("cargo:rerun-if-changed=src/main.rs");
-    println!("cargo:rerun-if-changed=src/ulh3-streaming.cpp");
-    println!("cargo:rerun-if-changed=src/ulh3-streaming.h");
+    println!("cargo:rerun-if-changed=src/threads/streaming/ulhaptics/ffi.rs");
+    println!("cargo:rerun-if-changed=src/threads/streaming/ulhaptics/ulh3-streaming.cpp");
+    println!("cargo:rerun-if-changed=src/threads/streaming/ulhaptics/ulh3-streaming.h");
 }

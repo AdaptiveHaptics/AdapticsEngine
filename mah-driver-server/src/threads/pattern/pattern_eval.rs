@@ -3,7 +3,7 @@ use std::ops::Sub;
 use std::time::Instant;
 use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams};
 use serde::{Deserialize, Serialize};
-use crate::*;
+use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::PEWSServerMessage};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "cmd", content = "data")]
@@ -25,6 +25,7 @@ pub enum PatternEvalCall {
 }
 
 pub fn pattern_eval_loop(
+	seconds_per_network_send: f64,
 	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,
 	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
 	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
@@ -69,7 +70,7 @@ pub fn pattern_eval_loop(
 						if pattern_playstart.is_some() { network_send_buffer.extend_from_slice(&eval_arr); }
 						patteval_return_tx.send(eval_arr).unwrap();
 
-						if pattern_playstart.is_some() && (Instant::now() - last_network_send).as_secs_f64() > SECONDS_PER_NETWORK_SEND {
+						if pattern_playstart.is_some() && (Instant::now() - last_network_send).as_secs_f64() > seconds_per_network_send {
 							last_network_send = Instant::now();
 							if network_send_buffer.is_empty() {
 								println!("[warn] skipping network update (no evals)");
