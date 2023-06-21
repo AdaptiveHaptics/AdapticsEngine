@@ -29,7 +29,7 @@ pub fn pattern_eval_loop(
 	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,
 	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
 	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
-	network_send_tx: crossbeam_channel::Sender<PEWSServerMessage>,
+	network_send_tx: Option<crossbeam_channel::Sender<PEWSServerMessage>>,
 ) -> Result<(), crossbeam_channel::RecvError> {
 	let default_pattern = pattern_evaluator::MidAirHapticsAnimationFileFormat {
 		data_format: pattern_evaluator::MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
@@ -77,17 +77,12 @@ pub fn pattern_eval_loop(
 								continue;
 							}
 							// else { println!("sending network update ({} evals)", network_send_buffer.len()); }
-							match network_send_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
-								Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
-								res => {
-									res.unwrap();
+							if let Some(network_send_tx) = &network_send_tx {
+								match network_send_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
+									Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
+									res => res.unwrap()
 								}
 							}
-							// network_send_tx.send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }).unwrap();
-							// if let Err(e) = network_send_tx.send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
-							//     // network thread exited, so we should exit
-							//     break;
-							// }
 							network_send_buffer.clear();
 						}
 					},
