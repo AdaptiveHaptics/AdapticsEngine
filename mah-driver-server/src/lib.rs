@@ -212,7 +212,10 @@ pub unsafe extern "C" fn adaptics_engine_update_parameters(handle: *mut Adaptics
 }
 
 
-// Guard function used by backends.
+/// Guard function used by backends.
+///
+/// Change impl version in this comment to force bump the API version.
+/// impl_version: 1
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn ffi_api_guard() -> interoptopus::patterns::api_guard::APIVersion {

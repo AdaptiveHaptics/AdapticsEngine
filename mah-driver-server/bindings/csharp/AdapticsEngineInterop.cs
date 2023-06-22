@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 15814009185797291274ul)
+            if (api_version != 12172712117313209754ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (15814009185797291274). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12172712117313209754). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -47,6 +47,10 @@ namespace com.github.AdaptiveHaptics
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_parameters")]
         public static extern void adaptics_engine_update_parameters(IntPtr handle, string evaluator_params);
 
+        /// Guard function used by backends.
+        ///
+        /// Change impl version in this comment to force bump the API version.
+        /// impl_version: 1
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "ffi_api_guard")]
         public static extern ulong ffi_api_guard();
 
