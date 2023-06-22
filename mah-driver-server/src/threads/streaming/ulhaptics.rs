@@ -59,6 +59,8 @@ pub fn start_streaming_emitter(
 			its_over_rx.recv().unwrap();
 			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
 			drop(ulh_streaming_controller);
+			let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
+			drop(cb);
 			Ok(())
 		},
 		Err(e) => {
