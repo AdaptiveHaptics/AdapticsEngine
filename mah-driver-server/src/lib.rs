@@ -155,6 +155,29 @@ pub fn run_threads_and_wait(use_mock_streaming: bool, websocket_bind_addr: Optio
 }
 
 
+#[ffi_type(patterns(ffi_error))]
+#[repr(C)]
+pub enum FFIError {
+    Ok = 0,
+    NullPassed = 1,
+    Panic = 2,
+    OtherError = 3,
+}
+// Gives special meaning to some of your error variants.
+impl interoptopus::patterns::result::FFIError for FFIError {
+    const SUCCESS: Self = Self::Ok;
+    const NULL: Self = Self::NullPassed;
+    const PANIC: Self = Self::Panic;
+}
+impl<T, E> From<Result<T, E>> for FFIError {
+    fn from(value: Result<T, E>) -> Self {
+        match value {
+            Ok(_) => Self::Ok,
+            Err(_) => Self::OtherError,
+        }
+    }
+}
+
 #[ffi_type(opaque)]
 #[repr(C)]
 pub struct AdapticsEngineHandleFFI {
@@ -183,32 +206,36 @@ pub unsafe extern "C" fn deinit_adaptics_engine(handle: *mut AdapticsEngineHandl
     println!("deinit_adaptics_engine done");
 }
 
+macro_rules! deref_check_null {
+    ($handle:expr) => {{
+        if $handle.is_null() { return FFIError::NullPassed; }
+        unsafe { &mut *$handle }
+    }};
+}
+
 /// # Safety
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_pattern(handle: *mut AdapticsEngineHandleFFI, pattern_json: AsciiPointer) {
-    if handle.is_null() { return }
-    let handle = unsafe { &mut *handle };
-    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).unwrap();
+pub unsafe extern "C" fn adaptics_engine_update_pattern(handle: *mut AdapticsEngineHandleFFI, pattern_json: AsciiPointer) -> FFIError {
+    let handle = deref_check_null!(handle);
+    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).into()
 }
 /// # Safety
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_playstart(handle: *mut AdapticsEngineHandleFFI, playstart: f64, playstart_offset: f64) {
-    if handle.is_null() { return }
-    let handle = unsafe { &mut *handle };
-    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Playstart { playstart, playstart_offset }).unwrap();
+pub unsafe extern "C" fn adaptics_engine_update_playstart(handle: *mut AdapticsEngineHandleFFI, playstart: f64, playstart_offset: f64) -> FFIError {
+    let handle = deref_check_null!(handle);
+    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Playstart { playstart, playstart_offset }).into()
 }
 /// # Safety
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_parameters(handle: *mut AdapticsEngineHandleFFI, evaluator_params: AsciiPointer) {
-    if handle.is_null() { return }
-    let handle = unsafe { &mut *handle };
-    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).unwrap();
+pub unsafe extern "C" fn adaptics_engine_update_parameters(handle: *mut AdapticsEngineHandleFFI, evaluator_params: AsciiPointer) -> FFIError {
+    let handle = deref_check_null!(handle);
+    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).into()
 }
 
 

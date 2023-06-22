@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 12172712117313209754ul)
+            if (api_version != 12151817731489831852ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12172712117313209754). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12151817731489831852). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -35,17 +35,50 @@ namespace com.github.AdaptiveHaptics
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_pattern")]
-        public static extern void adaptics_engine_update_pattern(IntPtr handle, string pattern_json);
+        public static extern FFIError adaptics_engine_update_pattern(IntPtr handle, string pattern_json);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_update_pattern_checked(IntPtr handle, string pattern_json)
+        {
+            var rval = adaptics_engine_update_pattern(handle, pattern_json);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
 
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_playstart")]
-        public static extern void adaptics_engine_update_playstart(IntPtr handle, double playstart, double playstart_offset);
+        public static extern FFIError adaptics_engine_update_playstart(IntPtr handle, double playstart, double playstart_offset);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_update_playstart_checked(IntPtr handle, double playstart, double playstart_offset)
+        {
+            var rval = adaptics_engine_update_playstart(handle, playstart, playstart_offset);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
 
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_parameters")]
-        public static extern void adaptics_engine_update_parameters(IntPtr handle, string evaluator_params);
+        public static extern FFIError adaptics_engine_update_parameters(IntPtr handle, string evaluator_params);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_update_parameters_checked(IntPtr handle, string evaluator_params)
+        {
+            var rval = adaptics_engine_update_parameters(handle, evaluator_params);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
 
         /// Guard function used by backends.
         ///
@@ -54,6 +87,14 @@ namespace com.github.AdaptiveHaptics
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "ffi_api_guard")]
         public static extern ulong ffi_api_guard();
 
+    }
+
+    public enum FFIError
+    {
+        Ok = 0,
+        NullPassed = 1,
+        Panic = 2,
+        OtherError = 3,
     }
 
 
