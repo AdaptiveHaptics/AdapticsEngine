@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 12151817731489831852ul)
+            if (api_version != 17051115575237112790ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12151817731489831852). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (17051115575237112790). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -30,7 +30,18 @@ namespace com.github.AdaptiveHaptics
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "deinit_adaptics_engine")]
-        public static extern void deinit_adaptics_engine(IntPtr handle);
+        public static extern FFIError deinit_adaptics_engine(IntPtr handle);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
+        public static void deinit_adaptics_engine_checked(IntPtr handle)
+        {
+            var rval = deinit_adaptics_engine(handle);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
 
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`

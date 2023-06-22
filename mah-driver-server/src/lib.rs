@@ -197,13 +197,13 @@ pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool) -> *mut Adaptic
 /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn deinit_adaptics_engine(handle: *mut AdapticsEngineHandleFFI) {
-    if handle.is_null() { return }
+pub unsafe extern "C" fn deinit_adaptics_engine(handle: *mut AdapticsEngineHandleFFI) -> FFIError {
+    if handle.is_null() { return FFIError::NullPassed; }
     let handle = unsafe { Box::from_raw(handle) };
     handle.aeh.its_over_tx.send(()).ok(); // ignore send error (if thread already exited)
-    handle.aeh.pattern_eval_handle.join().unwrap();
-    handle.aeh.ulh_streaming_handle.join().unwrap().ok(); // unwrap panics, return errors
-    println!("deinit_adaptics_engine done");
+    if handle.aeh.pattern_eval_handle.join().is_err() { return FFIError::Panic; }
+    handle.aeh.ulh_streaming_handle.join().map_or(FFIError::Panic, |r| r.into())
+    // println!("deinit_adaptics_engine done"); //doesnt work in unity anyway
 }
 
 macro_rules! deref_check_null {
