@@ -142,7 +142,7 @@ fn parse_ws_frame_full(frame: &[u8]) -> Option<(usize, WsFrameRecvd)> {
     }))
 }
 
-fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclients: &Arc<Mutex<Vec<MAHWebsocket>>>, patteval_call_tx: crossbeam_channel::Sender<PatternEvalUpdate>) {
+fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclients: &Arc<Mutex<Vec<MAHWebsocket>>>, patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>) {
     let sec_ws_key_header = "Sec-WebSocket-Key: ";
     let mut response = String::from("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ");
     while buf != "\r\n" { //line before data will have only \r\n (0D 0A)
@@ -180,7 +180,7 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                     if !wsfr.fin { panic!("Not yet implemented"); }
                     match wsfr.opcode {
                         WsFrameOpcodes::Continuation => {}
-                        WsFrameOpcodes::Text => patteval_call_tx.send(serde_json::from_slice(&wsfr.payload).unwrap()).unwrap(),
+                        WsFrameOpcodes::Text => patteval_update_tx.send(serde_json::from_slice(&wsfr.payload).unwrap()).unwrap(),
                         WsFrameOpcodes::Binary => todo!("binary ws frames"),
                         WsFrameOpcodes::Close => {
                             println!("closing ws\t'{:#X}'", uid);
@@ -188,7 +188,7 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                             wsclients.retain(|pwso| pwso.uid != uid);
                             if wsclients.len() == 0 {
                                 println!("no more ws clients, stopping playback");
-                                patteval_call_tx.send(PatternEvalUpdate::Playstart { playstart: 0.0, playstart_offset: 0.0 }).unwrap();
+                                patteval_update_tx.send(PatternEvalUpdate::Playstart { playstart: 0.0, playstart_offset: 0.0 }).unwrap();
                             }
                             break;
                         }

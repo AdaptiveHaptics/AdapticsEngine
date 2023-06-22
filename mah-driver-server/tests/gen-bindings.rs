@@ -15,7 +15,7 @@ fn bindings_csharp() -> Result<(), Error> {
 	std::fs::remove_dir_all("bindings").ok();
 	std::fs::create_dir_all("bindings/csharp").ok();
 
-	Generator::new(config, adaptics_engine::my_inventory())
+	Generator::new(config, adaptics_engine::ffi_inventory())
 		.add_overload_writer(DotNet::new())
 		// .add_overload_writer(Unity::new()) //requires use_unsafe or something see https://docs.rs/interoptopus_backend_csharp/latest/interoptopus_backend_csharp/overloads/index.html
 		.write_file("bindings/csharp/AdapticsEngine.cs")?;

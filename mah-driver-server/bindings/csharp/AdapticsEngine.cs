@@ -16,11 +16,39 @@ namespace com.github.AdaptiveHaptics.AdapticsEngine
 
         static Interop()
         {
+            var api_version = Interop.ffi_api_guard();
+            if (api_version != 15814009185797291274ul)
+            {
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (15814009185797291274). You probably forgot to update / copy either the bindings or the library.");
+            }
         }
 
 
-        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "init")]
-        public static extern void init();
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "init_adaptics_engine")]
+        public static extern IntPtr init_adaptics_engine(bool use_mock_streaming);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "deinit_adaptics_engine")]
+        public static extern void deinit_adaptics_engine(IntPtr handle);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_pattern")]
+        public static extern void adaptics_engine_update_pattern(IntPtr handle, string pattern_json);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_playstart")]
+        public static extern void adaptics_engine_update_playstart(IntPtr handle, double playstart, double playstart_offset);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_parameters")]
+        public static extern void adaptics_engine_update_parameters(IntPtr handle, string evaluator_params);
+
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "ffi_api_guard")]
+        public static extern ulong ffi_api_guard();
 
     }
 
