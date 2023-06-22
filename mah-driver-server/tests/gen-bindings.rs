@@ -8,7 +8,8 @@ fn bindings_csharp() -> Result<(), Error> {
 
 	let config = Config {
 		dll_name: "adaptics_engine".to_string(),
-		namespace_mappings: NamespaceMappings::new("com.github.AdaptiveHaptics.AdapticsEngine"),
+		namespace_mappings: NamespaceMappings::new("com.github.AdaptiveHaptics"),
+		class: "AdapticsEngineInterop".to_string(),
 		..Config::default()
 	};
 
@@ -18,7 +19,7 @@ fn bindings_csharp() -> Result<(), Error> {
 	Generator::new(config, adaptics_engine::ffi_inventory())
 		.add_overload_writer(DotNet::new())
 		// .add_overload_writer(Unity::new()) //requires use_unsafe or something see https://docs.rs/interoptopus_backend_csharp/latest/interoptopus_backend_csharp/overloads/index.html
-		.write_file("bindings/csharp/AdapticsEngine.cs")?;
+		.write_file("bindings/csharp/AdapticsEngineInterop.cs")?;
 
 	Ok(())
 }

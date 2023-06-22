@@ -5,18 +5,18 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using com.github.AdaptiveHaptics.AdapticsEngine;
+using com.github.AdaptiveHaptics;
 #pragma warning restore 0105
 
-namespace com.github.AdaptiveHaptics.AdapticsEngine
+namespace com.github.AdaptiveHaptics
 {
-    public static partial class Interop
+    public static partial class AdapticsEngineInterop
     {
         public const string NativeLib = "adaptics_engine";
 
-        static Interop()
+        static AdapticsEngineInterop()
         {
-            var api_version = Interop.ffi_api_guard();
+            var api_version = AdapticsEngineInterop.ffi_api_guard();
             if (api_version != 15814009185797291274ul)
             {
                 throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (15814009185797291274). You probably forgot to update / copy either the bindings or the library.");
