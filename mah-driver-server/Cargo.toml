@@ -1,12 +1,12 @@
 [package]
 name = "adaptics-engine"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 links = "UltraleapHaptics"
 
 
 [[bin]]
-name = "adaptics-engine"
+name = "adaptics-engine-cli"
 path = "src/main.rs"
 
 [lib]

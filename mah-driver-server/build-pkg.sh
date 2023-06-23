@@ -13,7 +13,9 @@ mkdir "$pkg_dir"
 cargo clippy
 cargo test --release # build and test the release version
 
-cp ../target/release/adaptics_engine.dll "$pkg_dir/adaptics_engine.dll"
-cp ./bindings/csharp/AdapticsEngineInterop.cs "$pkg_dir/AdapticsEngineInterop.cs"
+cp ../target/release/adaptics-engine-cli.exe "$pkg_dir/adaptics-engine-cli.exe"
+mkdir "$pkg_dir/unity"
+cp ../target/release/adaptics_engine.dll "$pkg_dir/unity/adaptics_engine.dll"
+cp ./bindings/csharp/AdapticsEngineInterop.cs "$pkg_dir/unity/AdapticsEngineInterop.cs"
 
 echo "Successfully built package in $pkg_dir"
