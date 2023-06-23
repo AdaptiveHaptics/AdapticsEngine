@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 17051115575237112790ul)
+            if (api_version != 356762228646146003ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (17051115575237112790). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (356762228646146003). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -30,16 +30,25 @@ namespace com.github.AdaptiveHaptics
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "deinit_adaptics_engine")]
-        public static extern FFIError deinit_adaptics_engine(IntPtr handle);
+        public static extern FFIError deinit_adaptics_engine(IntPtr handle, SliceMutu8 err_msg);
 
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
-        public static void deinit_adaptics_engine_checked(IntPtr handle)
+        public static void deinit_adaptics_engine(IntPtr handle, byte[] err_msg)
         {
-            var rval = deinit_adaptics_engine(handle);;
-            if (rval != FFIError.Ok)
+            var err_msg_pinned = GCHandle.Alloc(err_msg, GCHandleType.Pinned);
+            var err_msg_slice = new SliceMutu8(err_msg_pinned, (ulong) err_msg.Length);
+            try
             {
-                throw new InteropException<FFIError>(rval);
+                var rval = deinit_adaptics_engine(handle, err_msg_slice);;
+                if (rval != FFIError.Ok)
+                {
+                    throw new InteropException<FFIError>(rval);
+                }
+            }
+            finally
+            {
+                err_msg_pinned.Free();
             }
         }
 
@@ -106,7 +115,75 @@ namespace com.github.AdaptiveHaptics
         NullPassed = 1,
         Panic = 2,
         OtherError = 3,
+        AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo = 4,
+        ErrMsgProvided = 5,
     }
+
+    ///A pointer to an array of data someone else owns which may be modified.
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct SliceMutu8
+    {
+        ///Pointer to start of mutable data.
+        IntPtr data;
+        ///Number of elements.
+        ulong len;
+    }
+
+    public partial struct SliceMutu8 : IEnumerable<byte>
+    {
+        public SliceMutu8(GCHandle handle, ulong count)
+        {
+            this.data = handle.AddrOfPinnedObject();
+            this.len = count;
+        }
+        public SliceMutu8(IntPtr handle, ulong count)
+        {
+            this.data = handle;
+            this.len = count;
+        }
+        public byte this[int i]
+        {
+            get
+            {
+                if (i >= Count) throw new IndexOutOfRangeException();
+                var size = Marshal.SizeOf(typeof(byte));
+                var ptr = new IntPtr(data.ToInt64() + i * size);
+                return Marshal.PtrToStructure<byte>(ptr);
+            }
+            set
+            {
+                if (i >= Count) throw new IndexOutOfRangeException();
+                var size = Marshal.SizeOf(typeof(byte));
+                var ptr = new IntPtr(data.ToInt64() + i * size);
+                Marshal.StructureToPtr<byte>(value, ptr, false);
+            }
+        }
+        public byte[] Copied
+        {
+            get
+            {
+                var rval = new byte[len];
+                for (var i = 0; i < (int) len; i++) {
+                    rval[i] = this[i];
+                }
+                return rval;
+            }
+        }
+        public int Count => (int) len;
+        public IEnumerator<byte> GetEnumerator()
+        {
+            for (var i = 0; i < (int)len; ++i)
+            {
+                yield return this[i];
+            }
+        }
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
+        }
+    }
+
 
 
 

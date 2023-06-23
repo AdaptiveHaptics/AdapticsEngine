@@ -1,4 +1,5 @@
 use std::thread;
+use interoptopus::patterns::slice::FFISliceMut;
 use interoptopus::patterns::string::AsciiPointer;
 use interoptopus::{ffi_function, ffi_type, Inventory, InventoryBuilder, function};
 use pattern_evaluator::BrushAtAnimLocalTime;
@@ -162,6 +163,8 @@ pub enum FFIError {
     NullPassed = 1,
     Panic = 2,
     OtherError = 3,
+    AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo = 4,
+    ErrMsgProvided = 5,
 }
 // Gives special meaning to some of your error variants.
 impl interoptopus::patterns::result::FFIError for FFIError {
@@ -169,11 +172,23 @@ impl interoptopus::patterns::result::FFIError for FFIError {
     const NULL: Self = Self::NullPassed;
     const PANIC: Self = Self::Panic;
 }
-impl<T, E> From<Result<T, E>> for FFIError {
-    fn from(value: Result<T, E>) -> Self {
+impl FFIError {
+    fn update_last_error_msg(&self, handle: &mut AdapticsEngineHandleFFI) {
+        handle.last_error_msg = Some(match self {
+            FFIError::Ok => "ok",
+            FFIError::NullPassed => "A null pointer was passed where an actual element (likely AdapticsEngineHandleFFI) was needed",
+            FFIError::Panic => "A panic occurred. Further error information could not be marshalled",
+            FFIError::OtherError => "An error occurred. Further error information could not be marshalled",
+            FFIError::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo => "The AdapticsEngine thread disconnected. Check deinit_adaptics_engine for more information on what caused the disconnect",
+            FFIError::ErrMsgProvided => "An error occurred. Check independent err_msg for more information",
+        }.to_string())
+    }
+}
+impl<T> From<Result<(), crossbeam_channel::SendError<T>>> for FFIError {
+    fn from(value: Result<(), crossbeam_channel::SendError<T>>) -> Self {
         match value {
             Ok(_) => Self::Ok,
-            Err(_) => Self::OtherError,
+            Err(_) => Self::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo,
         }
     }
 }
@@ -181,6 +196,7 @@ impl<T, E> From<Result<T, E>> for FFIError {
 #[ffi_type(opaque)]
 #[repr(C)]
 pub struct AdapticsEngineHandleFFI {
+    last_error_msg: Option<String>,
     aeh: AdapticsEngineHandle,
 }
 
@@ -189,7 +205,8 @@ pub struct AdapticsEngineHandleFFI {
 #[no_mangle]
 pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool) -> *mut AdapticsEngineHandleFFI {
     Box::into_raw(Box::new(AdapticsEngineHandleFFI {
-        aeh: create_threads(use_mock_streaming, true)
+        aeh: create_threads(use_mock_streaming, true),
+        last_error_msg: None,
     }))
 }
 
@@ -197,13 +214,23 @@ pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool) -> *mut Adaptic
 /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn deinit_adaptics_engine(handle: *mut AdapticsEngineHandleFFI) -> FFIError {
+pub unsafe extern "C" fn deinit_adaptics_engine(handle: *mut AdapticsEngineHandleFFI, mut err_msg: FFISliceMut<u8>) -> FFIError {
     if handle.is_null() { return FFIError::NullPassed; }
     let handle = unsafe { Box::from_raw(handle) };
     handle.aeh.its_over_tx.send(()).ok(); // ignore send error (if thread already exited)
     if handle.aeh.pattern_eval_handle.join().is_err() { return FFIError::Panic; }
-    handle.aeh.ulh_streaming_handle.join().map_or(FFIError::Panic, |r| r.into())
-    // println!("deinit_adaptics_engine done"); //doesnt work in unity anyway
+    match handle.aeh.ulh_streaming_handle.join() {
+        Ok(Ok(())) => FFIError::Ok,
+        Ok(Err(res_err)) => {
+            let err_msg_rv_slice = err_msg.as_slice_mut();
+            let res_err_str_bytes = res_err.to_string().into_bytes();
+            // copy as many bytes of res_err_str_bytes as possible into err_msg_rv_slice
+            let bytes_to_copy = std::cmp::min(err_msg_rv_slice.len(), res_err_str_bytes.len());
+            err_msg_rv_slice[..bytes_to_copy].copy_from_slice(&res_err_str_bytes[..bytes_to_copy]);
+            FFIError::ErrMsgProvided
+        },
+        Err(_) => FFIError::Panic,
+    }
 }
 
 macro_rules! deref_check_null {
@@ -219,7 +246,9 @@ macro_rules! deref_check_null {
 #[no_mangle]
 pub unsafe extern "C" fn adaptics_engine_update_pattern(handle: *mut AdapticsEngineHandleFFI, pattern_json: AsciiPointer) -> FFIError {
     let handle = deref_check_null!(handle);
-    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).into()
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).into();
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
 }
 /// # Safety
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
@@ -227,7 +256,9 @@ pub unsafe extern "C" fn adaptics_engine_update_pattern(handle: *mut AdapticsEng
 #[no_mangle]
 pub unsafe extern "C" fn adaptics_engine_update_playstart(handle: *mut AdapticsEngineHandleFFI, playstart: f64, playstart_offset: f64) -> FFIError {
     let handle = deref_check_null!(handle);
-    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Playstart { playstart, playstart_offset }).into()
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Playstart { playstart, playstart_offset }).into();
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
 }
 /// # Safety
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
@@ -235,7 +266,9 @@ pub unsafe extern "C" fn adaptics_engine_update_playstart(handle: *mut AdapticsE
 #[no_mangle]
 pub unsafe extern "C" fn adaptics_engine_update_parameters(handle: *mut AdapticsEngineHandleFFI, evaluator_params: AsciiPointer) -> FFIError {
     let handle = deref_check_null!(handle);
-    handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).into()
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).into();
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
 }
 
 
