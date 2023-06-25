@@ -167,6 +167,7 @@ pub enum FFIError {
     ErrMsgProvided = 5,
     EnablePlaybackUpdatesWasFalse = 6,
     //NoPlaybackUpdatesAvailable = 7,
+    ParameterJSONDeserializationFailed = 8,
 }
 // Gives special meaning to some of your error variants.
 impl interoptopus::patterns::result::FFIError for FFIError {
@@ -178,13 +179,14 @@ impl FFIError {
     fn update_last_error_msg(&self, handle: &mut AdapticsEngineHandleFFI) {
         handle.last_error_msg = Some(match self {
             FFIError::Ok => "ok",
-            FFIError::NullPassed => "A null pointer was passed where an actual element (likely AdapticsEngineHandleFFI) was needed",
-            FFIError::Panic => "A panic occurred. Further error information could not be marshalled",
-            FFIError::OtherError => "An error occurred. Further error information could not be marshalled",
-            FFIError::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo => "The AdapticsEngine thread disconnected. Check deinit_adaptics_engine for more information on what caused the disconnect",
-            FFIError::ErrMsgProvided => "An error occurred. Check independent err_msg for more information",
-            FFIError::EnablePlaybackUpdatesWasFalse => "enable_playback_updates was false. Call init_adaptics_engine with enable_playback_updates set to true to enable playback updates",
+            FFIError::NullPassed => "A null pointer was passed where an actual element (likely AdapticsEngineHandleFFI) was needed.",
+            FFIError::Panic => "A panic occurred. Further error information could not be marshalled.",
+            FFIError::OtherError => "An error occurred. Further error information could not be marshalled.",
+            FFIError::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo => "The AdapticsEngine thread disconnected. Check deinit_adaptics_engine for more information on what caused the disconnect.",
+            FFIError::ErrMsgProvided => "An error occurred. Check err_msg parameter for more information.",
+            FFIError::EnablePlaybackUpdatesWasFalse => "enable_playback_updates was false. Call init_adaptics_engine with enable_playback_updates set to true to enable playback updates.",
             // FFIError::NoPlaybackUpdatesAvailable => "No playback updates available. Playback updates are available at ~30hz while a pattern is playing.",
+            FFIError::ParameterJSONDeserializationFailed => "Parameter JSON deserialization failed.",
         }.to_string())
     }
 }
@@ -246,7 +248,14 @@ macro_rules! deref_check_null {
         unsafe { &mut *$handle }
     }};
 }
-
+macro_rules! deserialize_json_parameter {
+    ($asciiptr:ident) => {
+        if let Some(cstr) = $asciiptr.as_c_str() {
+            if let Ok(value) = serde_json::from_slice(cstr.to_bytes()) { value }
+            else { return FFIError::ParameterJSONDeserializationFailed; }
+        } else { return FFIError::ParameterJSONDeserializationFailed; }
+    };
+}
 /// # Safety
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
 #[ffi_function]
@@ -273,14 +282,63 @@ pub unsafe extern "C" fn adaptics_engine_update_playstart(handle: *mut AdapticsE
 #[no_mangle]
 pub unsafe extern "C" fn adaptics_engine_update_parameters(handle: *mut AdapticsEngineHandleFFI, evaluator_params: AsciiPointer) -> FFIError {
     let handle = deref_check_null!(handle);
-    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice::<pattern_evaluator::PatternEvaluatorParameters>(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).into();
+    let evaluator_params = deserialize_json_parameter!(evaluator_params);
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params }).into();
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
+}
+/// # Safety
+/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+#[ffi_function]
+#[no_mangle]
+pub unsafe extern "C" fn adaptics_engine_reset_parameters(handle: *mut AdapticsEngineHandleFFI) -> FFIError {
+    let handle = deref_check_null!(handle);
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: pattern_evaluator::PatternEvaluatorParameters::default() }).into();
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
+}
+/// # Safety
+/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+#[ffi_function]
+#[no_mangle]
+pub unsafe extern "C" fn adaptics_engine_update_user_parameters(handle: *mut AdapticsEngineHandleFFI, user_parameters: AsciiPointer) -> FFIError {
+    let handle = deref_check_null!(handle);
+    let user_parameters = deserialize_json_parameter!(user_parameters);
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::UserParameters { user_parameters }).into();
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
+}
+
+#[ffi_type]
+#[repr(C)]
+pub struct GeoMatrix {
+    pub data: [f64; 16],
+}
+/// # Safety
+/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+#[ffi_function]
+#[no_mangle]
+pub unsafe extern "C" fn adaptics_engine_update_geo_transform_matrix(handle: *mut AdapticsEngineHandleFFI, geo_matrix: GeoMatrix) -> FFIError {
+    let handle = deref_check_null!(handle);
+    let transform = {
+        let g = geo_matrix.data;
+        pattern_evaluator::GeometricTransformMatrix([
+            [g[0], g[1], g[2], g[3]],
+            [g[4], g[5], g[6], g[7]],
+            [g[8], g[9], g[10], g[11]],
+            [g[12], g[13], g[14], g[15]],
+        ])
+    };
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::GeoTransformMatrix { transform }).into();
     ffi_error.update_last_error_msg(handle);
     ffi_error
 }
 
 
+
 /// !NOTE: y and z are swapped for Unity
 #[ffi_type]
+#[repr(C)]
 #[derive(Debug)]
 pub struct UnityEvalCoords {
     pub x: f64,
@@ -289,11 +347,13 @@ pub struct UnityEvalCoords {
 }
 /// !NOTE: y and z are swapped for Unity
 #[ffi_type]
+#[repr(C)]
 #[derive(Debug)]
 pub struct UnityEvalResult {
     /// !NOTE: y and z are swapped for Unity
     pub coords: UnityEvalCoords,
     pub intensity: f64,
+    pub pattern_time: f64,
 }
 impl From<BrushAtAnimLocalTime> for UnityEvalResult {
     fn from(be: BrushAtAnimLocalTime) -> UnityEvalResult {
@@ -305,6 +365,7 @@ impl From<BrushAtAnimLocalTime> for UnityEvalResult {
                 y: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.z), // !NOTE: y and z are swapped for Unity
             },
             intensity: be.ul_control_point.intensity,
+            pattern_time: be.pattern_time,
         }
     }
 }
@@ -360,6 +421,9 @@ pub fn ffi_inventory() -> Inventory {
         .register(function!(adaptics_engine_update_pattern))
         .register(function!(adaptics_engine_update_playstart))
         .register(function!(adaptics_engine_update_parameters))
+        .register(function!(adaptics_engine_reset_parameters))
+        .register(function!(adaptics_engine_update_user_parameters))
+        .register(function!(adaptics_engine_update_geo_transform_matrix))
         .register(function!(adaptics_engine_get_playback_updates))
         .register(function!(ffi_api_guard))
         .inventory()

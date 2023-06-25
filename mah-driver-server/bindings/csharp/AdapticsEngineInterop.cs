@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 2721690189323333137ul)
+            if (api_version != 17028886466105721048ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (2721690189323333137). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (17028886466105721048). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -104,6 +104,54 @@ namespace com.github.AdaptiveHaptics
 
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_reset_parameters")]
+        public static extern FFIError adaptics_engine_reset_parameters(IntPtr handle);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_reset_parameters_checked(IntPtr handle)
+        {
+            var rval = adaptics_engine_reset_parameters(handle);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_user_parameters")]
+        public static extern FFIError adaptics_engine_update_user_parameters(IntPtr handle, string user_parameters);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_update_user_parameters_checked(IntPtr handle, string user_parameters)
+        {
+            var rval = adaptics_engine_update_user_parameters(handle, user_parameters);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_geo_transform_matrix")]
+        public static extern FFIError adaptics_engine_update_geo_transform_matrix(IntPtr handle, GeoMatrix geo_matrix);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_update_geo_transform_matrix_checked(IntPtr handle, GeoMatrix geo_matrix)
+        {
+            var rval = adaptics_engine_update_geo_transform_matrix(handle, geo_matrix);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_get_playback_updates")]
         public static extern FFIError adaptics_engine_get_playback_updates(IntPtr handle, ref SliceMutUnityEvalResult eval_results, out uint num_evals);
 
@@ -136,6 +184,28 @@ namespace com.github.AdaptiveHaptics
 
     }
 
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct GeoMatrix
+    {
+        public double data0;
+        public double data1;
+        public double data2;
+        public double data3;
+        public double data4;
+        public double data5;
+        public double data6;
+        public double data7;
+        public double data8;
+        public double data9;
+        public double data10;
+        public double data11;
+        public double data12;
+        public double data13;
+        public double data14;
+        public double data15;
+    }
+
     /// !NOTE: y and z are swapped for Unity
     [Serializable]
     [StructLayout(LayoutKind.Sequential)]
@@ -154,6 +224,7 @@ namespace com.github.AdaptiveHaptics
         /// !NOTE: y and z are swapped for Unity
         public UnityEvalCoords coords;
         public double intensity;
+        public double pattern_time;
     }
 
     public enum FFIError
@@ -165,6 +236,7 @@ namespace com.github.AdaptiveHaptics
         AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo = 4,
         ErrMsgProvided = 5,
         EnablePlaybackUpdatesWasFalse = 6,
+        ParameterJSONDeserializationFailed = 8,
     }
 
     ///A pointer to an array of data someone else owns which may be modified.

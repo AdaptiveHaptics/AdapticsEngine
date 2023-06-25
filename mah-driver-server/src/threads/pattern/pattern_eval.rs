@@ -18,6 +18,10 @@ pub enum PatternEvalUpdate {
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
 	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },
+
+	//*** currently not sent over websocket, just for lib ***//
+	UserParameters { user_parameters: pattern_evaluator::UserParameters },
+	GeoTransformMatrix { transform: pattern_evaluator::GeometricTransformMatrix },
 }
 
 pub enum PatternEvalCall {
@@ -61,8 +65,9 @@ pub fn pattern_eval_loop(
 				match call {
 					PatternEvalCall::EvalBatch{ time_arr_instants } => {
 						let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
-							let time = if let Some(playstart) = pattern_playstart { time.sub(playstart).as_nanos() as f64 / 1e6 } else { parameters.time };
-							parameters.time = time;
+							if let Some(playstart) = pattern_playstart {
+								parameters.time = time.sub(playstart).as_nanos() as f64 / 1e6;
+							} //else reuse the last parameters.time
 							let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters, &next_eval_params);
 							next_eval_params = eval.next_eval_params.clone();
 							eval
@@ -99,7 +104,6 @@ pub fn pattern_eval_loop(
 					},
 					PatternEvalUpdate::Playstart{ playstart, playstart_offset } => {
 						// println!("playstart: {}, playstart_offset: {}", playstart, playstart_offset);
-						next_eval_params = NextEvalParams::default();
 						if playstart == 0.0 {
 							pattern_playstart = None;
 						} else {
@@ -107,8 +111,12 @@ pub fn pattern_eval_loop(
 							last_network_send = Instant::now();
 							network_send_buffer.clear();
 							pattern_playstart = Some(instant_add_js_milliseconds(Instant::now(), playstart_offset));
+							next_eval_params = NextEvalParams::new(parameters.time, 0.0);
 						}
 					},
+
+        			PatternEvalUpdate::UserParameters { user_parameters } => parameters.user_parameters = user_parameters,
+        			PatternEvalUpdate::GeoTransformMatrix { transform } => parameters.geometric_transform = transform,
 				}
 			},
 			_ => unreachable!(),

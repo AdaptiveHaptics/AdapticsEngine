@@ -14,7 +14,7 @@ pub struct PatternEvaluator {
 }
 
 pub type UserParameters = HashMap<String, f64>;
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct PatternEvaluatorParameters {
     pub time: f64,
     pub user_parameters: UserParameters,
@@ -517,6 +517,14 @@ impl Default for NextEvalParams {
         NextEvalParams {
             last_eval_pattern_time: 0.0,
             time_offset: 0.0,
+        }
+    }
+}
+impl NextEvalParams {
+    pub fn new(last_eval_pattern_time: MAHTime, time_offset: MAHTime) -> Self {
+        Self {
+            last_eval_pattern_time,
+            time_offset,
         }
     }
 }
