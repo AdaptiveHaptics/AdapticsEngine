@@ -17,15 +17,17 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 356762228646146003ul)
+            if (api_version != 2721690189323333137ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (356762228646146003). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (2721690189323333137). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
 
+        /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
+        /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at 30hz.
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "init_adaptics_engine")]
-        public static extern IntPtr init_adaptics_engine(bool use_mock_streaming);
+        public static extern IntPtr init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
 
         /// # Safety
         /// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
@@ -100,6 +102,31 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_get_playback_updates")]
+        public static extern FFIError adaptics_engine_get_playback_updates(IntPtr handle, ref SliceMutUnityEvalResult eval_results, out uint num_evals);
+
+        /// # Safety
+        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        public static void adaptics_engine_get_playback_updates(IntPtr handle, UnityEvalResult[] eval_results, out uint num_evals)
+        {
+            var eval_results_pinned = GCHandle.Alloc(eval_results, GCHandleType.Pinned);
+            var eval_results_slice = new SliceMutUnityEvalResult(eval_results_pinned, (ulong) eval_results.Length);
+            try
+            {
+                var rval = adaptics_engine_get_playback_updates(handle, ref eval_results_slice, out num_evals);;
+                if (rval != FFIError.Ok)
+                {
+                    throw new InteropException<FFIError>(rval);
+                }
+            }
+            finally
+            {
+                eval_results_pinned.Free();
+            }
+        }
+
         /// Guard function used by backends.
         ///
         /// Change impl version in this comment to force bump the API version.
@@ -107,6 +134,26 @@ namespace com.github.AdaptiveHaptics
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "ffi_api_guard")]
         public static extern ulong ffi_api_guard();
 
+    }
+
+    /// !NOTE: y and z are swapped for Unity
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct UnityEvalCoords
+    {
+        public double x;
+        public double y;
+        public double z;
+    }
+
+    /// !NOTE: y and z are swapped for Unity
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct UnityEvalResult
+    {
+        /// !NOTE: y and z are swapped for Unity
+        public UnityEvalCoords coords;
+        public double intensity;
     }
 
     public enum FFIError
@@ -117,7 +164,74 @@ namespace com.github.AdaptiveHaptics
         OtherError = 3,
         AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo = 4,
         ErrMsgProvided = 5,
+        EnablePlaybackUpdatesWasFalse = 6,
     }
+
+    ///A pointer to an array of data someone else owns which may be modified.
+    [Serializable]
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct SliceMutUnityEvalResult
+    {
+        ///Pointer to start of mutable data.
+        IntPtr data;
+        ///Number of elements.
+        ulong len;
+    }
+
+    public partial struct SliceMutUnityEvalResult : IEnumerable<UnityEvalResult>
+    {
+        public SliceMutUnityEvalResult(GCHandle handle, ulong count)
+        {
+            this.data = handle.AddrOfPinnedObject();
+            this.len = count;
+        }
+        public SliceMutUnityEvalResult(IntPtr handle, ulong count)
+        {
+            this.data = handle;
+            this.len = count;
+        }
+        public UnityEvalResult this[int i]
+        {
+            get
+            {
+                if (i >= Count) throw new IndexOutOfRangeException();
+                var size = Marshal.SizeOf(typeof(UnityEvalResult));
+                var ptr = new IntPtr(data.ToInt64() + i * size);
+                return Marshal.PtrToStructure<UnityEvalResult>(ptr);
+            }
+            set
+            {
+                if (i >= Count) throw new IndexOutOfRangeException();
+                var size = Marshal.SizeOf(typeof(UnityEvalResult));
+                var ptr = new IntPtr(data.ToInt64() + i * size);
+                Marshal.StructureToPtr<UnityEvalResult>(value, ptr, false);
+            }
+        }
+        public UnityEvalResult[] Copied
+        {
+            get
+            {
+                var rval = new UnityEvalResult[len];
+                for (var i = 0; i < (int) len; i++) {
+                    rval[i] = this[i];
+                }
+                return rval;
+            }
+        }
+        public int Count => (int) len;
+        public IEnumerator<UnityEvalResult> GetEnumerator()
+        {
+            for (var i = 0; i < (int)len; ++i)
+            {
+                yield return this[i];
+            }
+        }
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
+        }
+    }
+
 
     ///A pointer to an array of data someone else owns which may be modified.
     [Serializable]

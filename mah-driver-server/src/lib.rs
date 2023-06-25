@@ -2,14 +2,14 @@ use std::thread;
 use interoptopus::patterns::slice::FFISliceMut;
 use interoptopus::patterns::string::AsciiPointer;
 use interoptopus::{ffi_function, ffi_type, Inventory, InventoryBuilder, function};
-use pattern_evaluator::BrushAtAnimLocalTime;
+use pattern_evaluator::{BrushAtAnimLocalTime, PatternEvaluator};
 
 
 pub mod threads;
 use threads::pattern::pattern_eval;
 use pattern_eval::PatternEvalUpdate;
 use threads::streaming;
-use threads::net::websocket;
+use threads::net::websocket::{self, PEWSServerMessage};
 
 
 const CALLBACK_RATE: f64 = 500.0;
@@ -165,6 +165,8 @@ pub enum FFIError {
     OtherError = 3,
     AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo = 4,
     ErrMsgProvided = 5,
+    EnablePlaybackUpdatesWasFalse = 6,
+    //NoPlaybackUpdatesAvailable = 7,
 }
 // Gives special meaning to some of your error variants.
 impl interoptopus::patterns::result::FFIError for FFIError {
@@ -181,6 +183,8 @@ impl FFIError {
             FFIError::OtherError => "An error occurred. Further error information could not be marshalled",
             FFIError::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo => "The AdapticsEngine thread disconnected. Check deinit_adaptics_engine for more information on what caused the disconnect",
             FFIError::ErrMsgProvided => "An error occurred. Check independent err_msg for more information",
+            FFIError::EnablePlaybackUpdatesWasFalse => "enable_playback_updates was false. Call init_adaptics_engine with enable_playback_updates set to true to enable playback updates",
+            // FFIError::NoPlaybackUpdatesAvailable => "No playback updates available. Playback updates are available at ~30hz while a pattern is playing.",
         }.to_string())
     }
 }
@@ -201,11 +205,14 @@ pub struct AdapticsEngineHandleFFI {
 }
 
 
+/// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
+/// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at 30hz.
 #[ffi_function]
 #[no_mangle]
-pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool) -> *mut AdapticsEngineHandleFFI {
+pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback_updates: bool) -> *mut AdapticsEngineHandleFFI {
+    let aeh = create_threads(use_mock_streaming, !enable_playback_updates);
     Box::into_raw(Box::new(AdapticsEngineHandleFFI {
-        aeh: create_threads(use_mock_streaming, true),
+        aeh,
         last_error_msg: None,
     }))
 }
@@ -266,10 +273,74 @@ pub unsafe extern "C" fn adaptics_engine_update_playstart(handle: *mut AdapticsE
 #[no_mangle]
 pub unsafe extern "C" fn adaptics_engine_update_parameters(handle: *mut AdapticsEngineHandleFFI, evaluator_params: AsciiPointer) -> FFIError {
     let handle = deref_check_null!(handle);
-    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).into();
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: serde_json::from_slice::<pattern_evaluator::PatternEvaluatorParameters>(evaluator_params.as_c_str().unwrap().to_bytes()).unwrap() }).into();
     ffi_error.update_last_error_msg(handle);
     ffi_error
 }
+
+
+/// !NOTE: y and z are swapped for Unity
+#[ffi_type]
+#[derive(Debug)]
+pub struct UnityEvalCoords {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+/// !NOTE: y and z are swapped for Unity
+#[ffi_type]
+#[derive(Debug)]
+pub struct UnityEvalResult {
+    /// !NOTE: y and z are swapped for Unity
+    pub coords: UnityEvalCoords,
+    pub intensity: f64,
+}
+impl From<BrushAtAnimLocalTime> for UnityEvalResult {
+    fn from(be: BrushAtAnimLocalTime) -> UnityEvalResult {
+        UnityEvalResult {
+            // !NOTE: y and z are swapped for Unity
+            coords: UnityEvalCoords {
+                x: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.x),
+                z: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.y), // !NOTE: y and z are swapped for Unity
+                y: PatternEvaluator::unit_convert_dist_to_hapev2(&be.ul_control_point.coords.z), // !NOTE: y and z are swapped for Unity
+            },
+            intensity: be.ul_control_point.intensity,
+        }
+    }
+}
+
+/// # Safety
+/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+#[ffi_function]
+#[no_mangle]
+pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle: *mut AdapticsEngineHandleFFI, eval_results: &mut FFISliceMut<UnityEvalResult>, num_evals: *mut u32) -> FFIError {
+    let handle = deref_check_null!(handle);
+    let num_evals = deref_check_null!(num_evals);
+    let ffi_error: FFIError = match &handle.aeh.network_send_rx {
+        Some(network_send_rx) => {
+            match network_send_rx.try_recv() {
+                Ok(PEWSServerMessage::PlaybackUpdate { evals }) => {
+                    // copy as many evals as possible into eval_results
+                    let eval_results_slice = eval_results.as_slice_mut();
+                    let evalresults_to_copy = std::cmp::min(eval_results_slice.len(), evals.len());
+                    evals.into_iter().take(evalresults_to_copy).enumerate().for_each(|(i, be)| eval_results_slice[i] = be.into());
+                    *num_evals = evalresults_to_copy as u32;
+                    FFIError::Ok
+                },
+                Err(crossbeam_channel::TryRecvError::Empty) => {
+                    *num_evals = 0;
+                    FFIError::Ok
+                },
+                Err(crossbeam_channel::TryRecvError::Disconnected) => FFIError::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo,
+            }
+        },
+        None => FFIError::EnablePlaybackUpdatesWasFalse,
+    };
+    ffi_error.update_last_error_msg(handle);
+    ffi_error
+}
+
+
 
 
 /// Guard function used by backends.
@@ -289,6 +360,7 @@ pub fn ffi_inventory() -> Inventory {
         .register(function!(adaptics_engine_update_pattern))
         .register(function!(adaptics_engine_update_playstart))
         .register(function!(adaptics_engine_update_parameters))
+        .register(function!(adaptics_engine_get_playback_updates))
         .register(function!(ffi_api_guard))
         .inventory()
 }

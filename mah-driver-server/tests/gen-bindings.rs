@@ -4,7 +4,8 @@ use interoptopus::{Error, Interop};
 #[test]
 fn bindings_csharp() -> Result<(), Error> {
 	use interoptopus_backend_csharp::{Config, Generator};
-	use interoptopus_backend_csharp::overloads::{DotNet, Unity};
+	use interoptopus_backend_csharp::overloads::DotNet;
+	// use interoptopus_backend_csharp::overloads::Unity;
 
 	let config = Config {
 		dll_name: "adaptics_engine".to_string(),
