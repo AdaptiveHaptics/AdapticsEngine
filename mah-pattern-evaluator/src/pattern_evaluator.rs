@@ -16,7 +16,7 @@ pub struct PatternEvaluator {
 pub type UserParameters = HashMap<String, f64>;
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct PatternEvaluatorParameters {
-    pub time: f64,
+    pub time: MAHTime,
     pub user_parameters: UserParameters,
     pub geometric_transform: GeometricTransformMatrix,
 }
@@ -804,7 +804,7 @@ mod tests {
     }
 
     #[test]
-    fn test_geometric_transform_matrix_affine_transform() {
+    fn test_geometric_transform_matrix_projection_transform() {
         let matrix = GeometricTransformMatrix([
             [1.0, 0.0, 0.0, 1.0],
             [0.0, 1.0, 0.0, 2.0],

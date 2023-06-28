@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Sub;
 use std::time::Instant;
-use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams};
+use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams, MAHTime};
 use serde::{Deserialize, Serialize};
 use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::PEWSServerMessage};
 
@@ -20,6 +20,7 @@ pub enum PatternEvalUpdate {
     Parameters{ evaluator_params: PatternEvaluatorParameters },
 
 	//*** currently not sent over websocket, just for lib ***//
+	ParameterTime { time: MAHTime },
 	UserParameters { user_parameters: pattern_evaluator::UserParameters },
 	GeoTransformMatrix { transform: pattern_evaluator::GeometricTransformMatrix },
 }
@@ -115,6 +116,7 @@ pub fn pattern_eval_loop(
 						}
 					},
 
+					PatternEvalUpdate::ParameterTime { time } => parameters.time = time,
         			PatternEvalUpdate::UserParameters { user_parameters } => parameters.user_parameters = user_parameters,
         			PatternEvalUpdate::GeoTransformMatrix { transform } => parameters.geometric_transform = transform,
 				}

@@ -238,11 +238,9 @@ pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback
     handle_id
 }
 
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandleFFI` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn deinit_adaptics_engine(handle_id: HandleID, mut err_msg: FFISliceMut<u8>) -> FFIError {
+pub extern "C" fn deinit_adaptics_engine(handle_id: HandleID, mut err_msg: FFISliceMut<u8>) -> FFIError {
     let Some(handle) = ENGINE_HANDLE_MAP.write().unwrap().as_mut().and_then(|map| map.remove(&handle_id)) else { return FFIError::HandleIDNotFound; };
     handle.aeh.its_over_tx.send(()).ok(); // ignore send error (if thread already exited)
     if handle.aeh.pattern_eval_handle.join().is_err() { return FFIError::Panic; }
@@ -280,48 +278,54 @@ macro_rules! deserialize_json_parameter {
         } else { return FFIError::ParameterJSONDeserializationFailed; }
     };
 }
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_pattern(handle_id: HandleID, pattern_json: AsciiPointer) -> FFIError {
+pub extern "C" fn adaptics_engine_update_pattern(handle_id: HandleID, pattern_json: AsciiPointer) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).into();
     ffi_error
 }
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_playstart(handle_id: HandleID, playstart: f64, playstart_offset: f64) -> FFIError {
+pub extern "C" fn adaptics_engine_update_playstart(handle_id: HandleID, playstart: f64, playstart_offset: f64) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Playstart { playstart, playstart_offset }).into();
     ffi_error
 }
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_parameters(handle_id: HandleID, evaluator_params: AsciiPointer) -> FFIError {
+pub extern "C" fn adaptics_engine_update_parameters(handle_id: HandleID, evaluator_params: AsciiPointer) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let evaluator_params = deserialize_json_parameter!(evaluator_params);
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params }).into();
     ffi_error
 }
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_reset_parameters(handle_id: HandleID) -> FFIError {
+pub extern "C" fn adaptics_engine_reset_parameters(handle_id: HandleID) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: pattern_evaluator::PatternEvaluatorParameters::default() }).into();
     ffi_error
 }
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+
+/// Will be overwritten by playstart time computation.
+/// However, the time parameter is needed to correctly start in the middle of a pattern. (next_eval_params.last_eval_pattern_time will be set to this when a new playstart is received)
+/// This will need to be called before playstart
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_user_parameters(handle_id: HandleID, user_parameters: AsciiPointer) -> FFIError {
+pub extern "C" fn adaptics_engine_update_time(handle_id: HandleID, time: f64) -> FFIError {
+    get_handle_from_id!(handle <- handle_id);
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::ParameterTime { time }).into();
+    ffi_error
+}
+
+#[ffi_function]
+#[no_mangle]
+pub extern "C" fn adaptics_engine_update_user_parameters(handle_id: HandleID, user_parameters: AsciiPointer) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let user_parameters = deserialize_json_parameter!(user_parameters);
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::UserParameters { user_parameters }).into();
@@ -337,7 +341,7 @@ pub struct GeoMatrix {
 /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
 #[ffi_function]
 #[no_mangle]
-pub unsafe extern "C" fn adaptics_engine_update_geo_transform_matrix(handle_id: HandleID, geo_matrix: GeoMatrix) -> FFIError {
+pub extern "C" fn adaptics_engine_update_geo_transform_matrix(handle_id: HandleID, geo_matrix: GeoMatrix) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let transform = {
         let g = geo_matrix.data;
@@ -389,7 +393,7 @@ impl From<BrushAtAnimLocalTime> for UnityEvalResult {
 }
 
 /// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+/// `num_evals` must be a valid pointer to a u32
 #[ffi_function]
 #[no_mangle]
 pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleID, eval_results: &mut FFISliceMut<UnityEvalResult>, num_evals: *mut u32) -> FFIError {
@@ -439,6 +443,7 @@ pub fn ffi_inventory() -> Inventory {
         .register(function!(adaptics_engine_update_playstart))
         .register(function!(adaptics_engine_update_parameters))
         .register(function!(adaptics_engine_reset_parameters))
+        .register(function!(adaptics_engine_update_time))
         .register(function!(adaptics_engine_update_user_parameters))
         .register(function!(adaptics_engine_update_geo_transform_matrix))
         .register(function!(adaptics_engine_get_playback_updates))
@@ -456,11 +461,9 @@ mod test {
     #[test]
     fn test_update_user_params() {
         let handle = init_adaptics_engine(true, false);
-        unsafe {
-            let cstr = CString::new("{\"dist\": 74.446439743042}").unwrap();
-            let ap = AsciiPointer::from_cstr(&cstr);
-            let rv = adaptics_engine_update_user_parameters(handle, ap);
-            assert_eq!(rv, FFIError::Ok);
-        }
+        let cstr = CString::new("{\"dist\": 74.446439743042}").unwrap();
+        let ap = AsciiPointer::from_cstr(&cstr);
+        let rv = adaptics_engine_update_user_parameters(handle, ap);
+        assert_eq!(rv, FFIError::Ok);
     }
 }
