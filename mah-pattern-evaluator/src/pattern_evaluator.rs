@@ -620,19 +620,21 @@ impl MAHCondition {
 
 impl GeometricTransformMatrix {
     fn affine_transform(&self, coords: &MAHCoordsConst) -> MAHCoordsConst {
-        let mut coords = coords.clone();
-        coords.x = self[0][0] * coords.x + self[0][1] * coords.y + self[0][2] * coords.z + self[0][3];
-        coords.y = self[1][0] * coords.x + self[1][1] * coords.y + self[1][2] * coords.z + self[1][3];
-        coords.z = self[2][0] * coords.x + self[2][1] * coords.y + self[2][2] * coords.z + self[2][3];
-        coords
+        let w = 1.0; // always assume `coords` represents a point, not a vector
+        MAHCoordsConst {
+            x: self[0][0] * coords.x + self[0][1] * coords.y + self[0][2] * coords.z + self[0][3] * w,
+            y: self[1][0] * coords.x + self[1][1] * coords.y + self[1][2] * coords.z + self[1][3] * w,
+            z: self[2][0] * coords.x + self[2][1] * coords.y + self[2][2] * coords.z + self[2][3] * w,
+        }
     }
     fn projection_transform(&self, coords: &MAHCoordsConst) -> MAHCoordsConst {
-        let mut coords = self.affine_transform(coords);
-        let w = self[3][0] * coords.x + self[3][1] * coords.y + self[3][2] * coords.z + self[3][3];
-        coords.x /= w;
-        coords.y /= w;
-        coords.z /= w;
-        coords
+        let mut new_coords = self.affine_transform(coords);
+        let w = 1.0; // always assume `coords` represents a point, not a vector
+        let new_w = self[3][0] * coords.x + self[3][1] * coords.y + self[3][2] * coords.z + self[3][3] * w;
+        new_coords.x /= new_w;
+        new_coords.y /= new_w;
+        new_coords.z /= new_w;
+        new_coords
     }
 }
 
