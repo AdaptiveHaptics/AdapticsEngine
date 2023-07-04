@@ -98,7 +98,7 @@ pub fn pattern_eval_loop(
 				let update = oper.recv(&patteval_update_rx)?;
 				match update {
 					PatternEvalUpdate::Pattern{ pattern_json } => {
-						pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json);
+						pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json).unwrap(); //todo: handle error (not sure how to propagate it to calling thread)
 					},
 					PatternEvalUpdate::Parameters{ evaluator_params } => {
 						parameters = evaluator_params;

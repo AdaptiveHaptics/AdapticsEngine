@@ -39,11 +39,11 @@ impl PatternEvaluator {
         }
     }
 
-    pub fn new_from_json_string(mah_animation_json: &str) -> Self {
-        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json).unwrap();
+    pub fn new_from_json_string(mah_animation_json: &str) -> Result<Self, serde_json::Error> {
+        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
         mah_animation.keyframes.sort_by(|a, b| a.time().total_cmp(b.time()));
 
-        Self { mah_animation }
+        Ok(Self { mah_animation })
     }
 
     fn get_kf_config_type(&self, t: MAHTime, prev: bool) -> MAHKeyframeConfig {
@@ -413,12 +413,12 @@ impl PatternEvaluator {
 
 }
 
-// #[cfg(target_arch = "wasm32")]
+#[cfg(target_arch = "wasm32")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
-    pub fn new_json(mah_animation_json: &str) -> Self {
-        Self::new_from_json_string(mah_animation_json)
+    pub fn new_json(mah_animation_json: &str) -> Result<PatternEvaluator, JsError> {
+        Ok(Self::new_from_json_string(mah_animation_json)?)
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time))]
@@ -662,6 +662,7 @@ impl GeometricTransformsSimple {
 
         coords
     }
+    #[cfg(target_arch = "wasm32")] //only used in web gui, for now
     fn inverse(&self, coords: &MAHCoordsConst, dyn_up_info: &DynUserParamInfo) -> MAHCoordsConst {
         let mut coords = coords.clone();
 
@@ -820,7 +821,7 @@ mod tests {
 
     #[test]
     fn test_basic_pattern() {
-        let pattern_eval = PatternEvaluator::new_from_json_string(&create_test_pattern_json());
+        let pattern_eval = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
         let p = PatternEvaluatorParameters {
             time: 0.0,
             user_parameters: HashMap::from_iter(vec![
@@ -857,7 +858,7 @@ mod tests {
     fn bench() {
         let warmup_iterations = 50;
         let mut max_time = Duration::default();
-        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json());
+        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
         for o in 0..3000 {
             if o == warmup_iterations {
                 println!("Warmup done, starting benchmark..");
@@ -886,12 +887,12 @@ mod tests {
         println!("Max elapsed: {:.2?}", max_time);
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    //#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     #[ignore="bench"]
     fn benchwasm() {
         let warmup_iterations = 5;
-        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json());
+        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
         for o in 0..3000 {
             if o == warmup_iterations {
                 println!("Warmup done, starting benchmark..");
