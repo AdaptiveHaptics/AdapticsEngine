@@ -18,6 +18,8 @@ pub enum PatternEvalUpdate {
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
 	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },
+	#[serde(rename="update_tracking")]
+	Tracking{ enabled: bool },
 
 	//*** currently not sent over websocket, just for lib ***//
 	ParameterTime { time: MAHTime },
@@ -50,6 +52,7 @@ pub fn pattern_eval_loop(
 	let mut pattern_playstart: Option<Instant> = None;
 	let mut parameters = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::new(), geometric_transform: Default::default() };
 	let mut tracking_data: TrackingFrame = TrackingFrame { hand: None };
+	let mut enable_tracking = false;
 
 	let mut last_playback_update = Instant::now();
 	let mut playback_update_buffer: Vec<BrushAtAnimLocalTime> = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
@@ -82,18 +85,18 @@ pub fn pattern_eval_loop(
 						if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr); }
 
 						// apply tracking
-						let eval_arr_tracking_adjusted = if let Some(hand_pos) = &tracking_data.hand {
-							// shift evals by hand_pos
-							let mut eval_arr = eval_arr;
-							for e in &mut eval_arr {
-								e.ul_control_point.coords.x += hand_pos.x;
-								e.ul_control_point.coords.y += hand_pos.y;
-								e.ul_control_point.coords.z = hand_pos.z;
-							}
-							eval_arr
-						} else {
-							eval_arr
-						};
+						let eval_arr_tracking_adjusted = if enable_tracking {
+							if let Some(hand_pos) = &tracking_data.hand {
+								// shift evals by hand_pos
+								let mut eval_arr = eval_arr;
+								for e in &mut eval_arr {
+									e.ul_control_point.coords.x += hand_pos.x;
+									e.ul_control_point.coords.y += hand_pos.y;
+									e.ul_control_point.coords.z = hand_pos.z;
+								}
+								eval_arr
+							} else { eval_arr }
+						} else { eval_arr };
 
 						// send tracked evals to haptic device
 						patteval_return_tx.send(eval_arr_tracking_adjusted).unwrap();
@@ -137,6 +140,9 @@ pub fn pattern_eval_loop(
 							pattern_playstart = Some(instant_add_js_milliseconds(Instant::now(), playstart_offset));
 							next_eval_params = NextEvalParams::new(parameters.time, 0.0);
 						}
+					},
+					PatternEvalUpdate::Tracking { enabled } => {
+						enable_tracking = enabled;
 					},
 
 					PatternEvalUpdate::ParameterTime { time } => parameters.time = time,
