@@ -94,6 +94,7 @@ void OpenConnectionAndStartMessagePump(rust::Fn<void(LMCRawTrackingCoords const 
 				case eLeapEventType_ConfigResponse: break;
 				case eLeapEventType_Image: break;
 				case eLeapEventType_PointMappingChange: break;
+				case eLeapEventType_TrackingMode: break;
 				case eLeapEventType_LogEvents: break;
 				case eLeapEventType_HeadPose: break;
 				default: printf("[LMC-Track] Unhandled message type %i.\n", msg.type);
