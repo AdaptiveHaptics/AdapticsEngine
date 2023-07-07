@@ -11,12 +11,12 @@ fn tracking_is_done() -> bool {
 	TRACKING_IS_DONE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-fn lmcraw_to_tracking_frame(raw: &LMCRawTrackingCoords) -> TrackingFrame {
+fn lmc_raw_to_tracking_frame(raw: &LMCRawTrackingCoords) -> TrackingFrame {
 	TrackingFrame {
 		hand: if !raw.has_hand { None } else { Some(pattern_evaluator::MAHCoordsConst {
 			x: raw.x,
-			y: raw.y + 121.0, // 121mm is the offset from the LMC origin to the haptic origin
-			z: raw.z,
+			y: -raw.z + 121.0, // 121mm is the offset from the LMC origin to the haptic origin
+			z: raw.y, // flip y and z to match the haptic coordinate system
 		})}
 	}
 }
@@ -34,7 +34,7 @@ pub fn start_tracking_loop(
 	}
 
 	let tracking_callback = move |raw_coords: &LMCRawTrackingCoords| {
-		tracking_data_tx.send(lmcraw_to_tracking_frame(raw_coords)).unwrap();
+		tracking_data_tx.send(lmc_raw_to_tracking_frame(raw_coords)).unwrap();
 	};
 
 	if let Some(_cb) = STATIC_CALLBACK_MUTEX.lock().unwrap().replace(Box::new(tracking_callback)) {

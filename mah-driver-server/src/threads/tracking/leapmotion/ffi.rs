@@ -6,7 +6,7 @@ pub(super) mod cxx_ffi {
 	///
 	/// **Units are in millimeters.**
 	///
-	/// **z is height from device**, x is left/right, y is forward/backward.
+	/// **+y is height from device**, +x is right, +z is towards user.
 	struct LMCRawTrackingCoords {
 		has_hand: bool,
 		x: f64,
