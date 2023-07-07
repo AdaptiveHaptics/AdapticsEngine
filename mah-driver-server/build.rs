@@ -11,7 +11,7 @@ const LEAP_HEADER_PATH: &str = "C:/Program Files/Ultraleap/LeapSDK/include";
 
 const LIBCLANG_PATH: &str = "C:/Program Files/LLVM/bin/";
 
-const COPY_DLL_TO_OUT_DIR: bool = false;
+const COPY_DLL_TO_OUT_DIR: bool = true;
 
 fn main() {
     let out_dir = PathBuf::from(&std::env::var("OUT_DIR").unwrap());
