@@ -225,17 +225,17 @@ fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &PEW
     }
 }
 
-fn websocket_dispatcher_loop_thread(network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>, wsclients: Arc<Mutex<Vec<MAHWebsocket>>>) {
-    while let Ok(msg) = network_send_rx.recv() {
+fn websocket_dispatcher_loop_thread(playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>, wsclients: Arc<Mutex<Vec<MAHWebsocket>>>) {
+    while let Ok(msg) = playback_updates_rx.recv() {
         loop_through_send_removing_fails(&mut wsclients.lock().unwrap(), &msg);
     }
     // channel disconnected so we should exit
 }
 
-pub fn start_ws_server(websocket_server_addr: &str, patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, network_send_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
+pub fn start_ws_server(websocket_server_addr: &str, patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
     let wsclients = Arc::new(Mutex::new(Vec::new()));
     let wsclients2 = wsclients.clone();
-    std::thread::spawn(move || websocket_dispatcher_loop_thread(network_send_rx, wsclients2));
+    std::thread::spawn(move || websocket_dispatcher_loop_thread(playback_updates_rx, wsclients2));
     let listener = TcpListener::bind(websocket_server_addr).unwrap();
     for stream in listener.incoming() {
         match stream {

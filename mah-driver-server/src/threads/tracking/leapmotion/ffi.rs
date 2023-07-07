@@ -2,7 +2,12 @@
 pub(super) mod cxx_ffi {
 
 	#[derive(Debug)]
-	struct RawTrackingCoords {
+	/// This struct is used to pass tracking data from the Leap Motion C++ SDK to Rust.
+	///
+	/// **Units are in millimeters.**
+	///
+	/// **z is height from device**, x is left/right, y is forward/backward.
+	struct LMCRawTrackingCoords {
 		has_hand: bool,
 		x: f64,
 		y: f64,
@@ -14,7 +19,7 @@ pub(super) mod cxx_ffi {
 
 		// using rust_tracking_callback = rust::Fn<bool(const LEAP_TRACKING_EVENT*)>;
 		// void OpenConnectionAndStartMessagePump(rust_tracking_callback cb_func);
-		fn OpenConnectionAndStartMessagePump(cb_func: fn(&RawTrackingCoords), is_done: fn() -> bool);
+		fn OpenConnectionAndStartMessagePump(cb_func: fn(&LMCRawTrackingCoords), is_done: fn() -> bool);
 	}
 
 }

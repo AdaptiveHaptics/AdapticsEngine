@@ -3,7 +3,7 @@ use std::ops::Sub;
 use std::time::Instant;
 use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams, MAHTime};
 use serde::{Deserialize, Serialize};
-use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::PEWSServerMessage};
+use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::PEWSServerMessage, tracking::TrackingFrame};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "cmd", content = "data")]
@@ -30,11 +30,12 @@ pub enum PatternEvalCall {
 }
 
 pub fn pattern_eval_loop(
-	seconds_per_network_send: f64,
+	seconds_per_playback_update: f64,
 	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,
 	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
 	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
-	network_send_tx: Option<crossbeam_channel::Sender<PEWSServerMessage>>,
+	playback_updates_tx: Option<crossbeam_channel::Sender<PEWSServerMessage>>,
+	tracking_data_rx: Option<crossbeam_channel::Receiver<TrackingFrame>>,
 ) -> Result<(), crossbeam_channel::RecvError> {
 	let default_pattern = pattern_evaluator::MidAirHapticsAnimationFileFormat {
 		data_format: pattern_evaluator::MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
@@ -48,9 +49,10 @@ pub fn pattern_eval_loop(
 	let mut pattern_eval = PatternEvaluator::new(default_pattern);
 	let mut pattern_playstart: Option<Instant> = None;
 	let mut parameters = PatternEvaluatorParameters { time: 0.0, user_parameters: HashMap::new(), geometric_transform: Default::default() };
+	let mut tracking_data: TrackingFrame = TrackingFrame { hand: None };
 
-	let mut last_network_send = Instant::now();
-	let mut network_send_buffer: Vec<BrushAtAnimLocalTime> = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
+	let mut last_playback_update = Instant::now();
+	let mut playback_update_buffer: Vec<BrushAtAnimLocalTime> = Vec::with_capacity(1024); // 20khz / 60hz = ~333.33 is the number of EvalResults sent in a batch
 
 	let mut next_eval_params = NextEvalParams::default();
 
@@ -59,6 +61,7 @@ pub fn pattern_eval_loop(
 		let mut sel = crossbeam_channel::Select::new();
 		let patteval_call_rx_idx = sel.recv(&patteval_call_rx);
 		let patteval_update_rx_idx = sel.recv(&patteval_update_rx);
+		let tracking_data_rx_idx = tracking_data_rx.as_ref().map(|tracking_data_rx| sel.recv(tracking_data_rx));
 		let oper = sel.select();
 		match oper.index() {
 			i if i == patteval_call_rx_idx => {
@@ -73,23 +76,43 @@ pub fn pattern_eval_loop(
 							next_eval_params = eval.next_eval_params.clone();
 							eval
 						}).collect();
-						if pattern_playstart.is_some() { network_send_buffer.extend_from_slice(&eval_arr); }
-						patteval_return_tx.send(eval_arr).unwrap();
 
-						if pattern_playstart.is_some() && (Instant::now() - last_network_send).as_secs_f64() > seconds_per_network_send {
-							last_network_send = Instant::now();
-							if network_send_buffer.is_empty() {
+
+						// send untracked evals to network
+						if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr); }
+
+						// apply tracking
+						let eval_arr_tracking_adjusted = if let Some(hand_pos) = &tracking_data.hand {
+							// shift evals by hand_pos
+							let mut eval_arr = eval_arr;
+							for e in &mut eval_arr {
+								e.ul_control_point.coords.x += hand_pos.x;
+								e.ul_control_point.coords.y += hand_pos.y;
+								e.ul_control_point.coords.z = hand_pos.z;
+							}
+							eval_arr
+						} else {
+							eval_arr
+						};
+
+						// send tracked evals to haptic device
+						patteval_return_tx.send(eval_arr_tracking_adjusted).unwrap();
+
+
+						if pattern_playstart.is_some() && (Instant::now() - last_playback_update).as_secs_f64() > seconds_per_playback_update {
+							last_playback_update = Instant::now();
+							if playback_update_buffer.is_empty() {
 								println!("[warn] skipping network update (no evals)");
 								continue;
 							}
-							// else { println!("sending network update ({} evals)", network_send_buffer.len()); }
-							if let Some(network_send_tx) = &network_send_tx {
-								match network_send_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: network_send_buffer.clone() }) {
+							// else { println!("sending network update ({} evals)", playback_update_buffer.len()); }
+							if let Some(playback_updates_tx) = &playback_updates_tx {
+								match playback_updates_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
 									Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
 									res => res.unwrap()
 								}
 							}
-							network_send_buffer.clear();
+							playback_update_buffer.clear();
 						}
 					},
 				}
@@ -109,8 +132,8 @@ pub fn pattern_eval_loop(
 							pattern_playstart = None;
 						} else {
 							// get current time in milliseconds as f64
-							last_network_send = Instant::now();
-							network_send_buffer.clear();
+							last_playback_update = Instant::now();
+							playback_update_buffer.clear();
 							pattern_playstart = Some(instant_add_js_milliseconds(Instant::now(), playstart_offset));
 							next_eval_params = NextEvalParams::new(parameters.time, 0.0);
 						}
@@ -120,6 +143,9 @@ pub fn pattern_eval_loop(
         			PatternEvalUpdate::UserParameters { user_parameters } => parameters.user_parameters = user_parameters,
         			PatternEvalUpdate::GeoTransformMatrix { transform } => parameters.geometric_transform = transform,
 				}
+			},
+			i if Some(i) == tracking_data_rx_idx => {
+				tracking_data = oper.recv(tracking_data_rx.as_ref().unwrap())?;
 			},
 			_ => unreachable!(),
 		};

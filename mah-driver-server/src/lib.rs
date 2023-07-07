@@ -13,10 +13,10 @@ use threads::pattern::pattern_eval;
 use pattern_eval::PatternEvalUpdate;
 use threads::streaming;
 use threads::net::websocket::{self, PEWSServerMessage};
-
+use threads::tracking;
 
 const CALLBACK_RATE: f64 = 500.0;
-const SECONDS_PER_NETWORK_SEND: f64 = 1.0 / 30.0;
+const SECONDS_PER_PLAYBACK_UPDATE: f64 = 1.0 / 30.0;
 const DEVICE_UPDATE_RATE: u64 = 20000; //20khz
 
 
@@ -41,23 +41,24 @@ impl std::error::Error for TLError {
 }
 
 pub struct AdapticsEngineHandle {
-    its_over_tx: crossbeam_channel::Sender<()>,
+    end_streaming_tx: crossbeam_channel::Sender<()>,
     pattern_eval_handle: thread::JoinHandle<()>,
     patteval_update_tx: crossbeam_channel::Sender<pattern_eval::PatternEvalUpdate>,
     ulh_streaming_handle: thread::JoinHandle<Result<(), Box<dyn std::error::Error + std::marker::Send>>>,
-    network_send_rx: Option<crossbeam_channel::Receiver<websocket::PEWSServerMessage>>,
+    playback_updates_rx: Option<crossbeam_channel::Receiver<websocket::PEWSServerMessage>>,
 }
 
 fn create_threads(
     use_mock_streaming: bool,
-    no_network_playback_updates: bool,
+    disable_playback_updates: bool,
+    tracking_data_rx: Option<crossbeam_channel::Receiver<tracking::TrackingFrame>>,
 ) -> AdapticsEngineHandle {
     let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::unbounded();
     let (patteval_update_tx, patteval_update_rx) = crossbeam_channel::unbounded();
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded::<Vec<BrushAtAnimLocalTime>>(0);
-    let (network_send_tx, network_send_rx) = if !no_network_playback_updates { let (t,r) = crossbeam_channel::bounded(1); (Some(t), Some(r)) } else { (None, None) };
+    let (playback_updates_tx, playback_updates_rx) = if !disable_playback_updates { let (t,r) = crossbeam_channel::bounded(1); (Some(t), Some(r)) } else { (None, None) };
 
-    let (its_over_tx, its_over_rx) = crossbeam_channel::bounded(1);
+    let (end_streaming_tx, end_streaming_rx) = crossbeam_channel::bounded(1);
 
     // thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
 
@@ -67,11 +68,12 @@ fn create_threads(
             println!("pattern-eval thread starting...");
 
             let res = pattern_eval::pattern_eval_loop(
-                SECONDS_PER_NETWORK_SEND,
+                SECONDS_PER_PLAYBACK_UPDATE,
                 patteval_call_rx,
                 patteval_update_rx,
                 patteval_return_tx,
-                network_send_tx,
+                playback_updates_tx,
+                tracking_data_rx,
             );
 
             // res.unwrap();
@@ -91,7 +93,7 @@ fn create_threads(
                     CALLBACK_RATE as f32,
                     patteval_call_tx,
                     patteval_return_rx,
-                    its_over_rx,
+                    end_streaming_rx,
                 )
             }).unwrap()
     } else {
@@ -106,7 +108,7 @@ fn create_threads(
                     CALLBACK_RATE,
                     patteval_call_tx,
                     patteval_return_rx,
-                    its_over_rx,
+                    end_streaming_rx,
                 );
 
                 // println!("mock streaming thread exiting...");
@@ -116,31 +118,38 @@ fn create_threads(
     };
 
     AdapticsEngineHandle {
-        its_over_tx,
+        end_streaming_tx,
         pattern_eval_handle,
         patteval_update_tx,
         ulh_streaming_handle,
-        network_send_rx,
+        playback_updates_rx,
     }
 }
 
 
-pub fn run_threads_and_wait(use_mock_streaming: bool, websocket_bind_addr: Option<String>) -> Result<(), Box<dyn std::error::Error + Send>> {
+pub fn run_threads_and_wait(
+    use_mock_streaming: bool,
+    websocket_bind_addr: Option<String>,
+    enable_tracking: bool,
+) -> Result<(), Box<dyn std::error::Error + Send>> {
+
+    let (tracking_data_tx, tracking_data_rx) = if enable_tracking { let (s, r) = crossbeam_channel::unbounded(); (Some(s), Some(r)) } else { (None, None) };
 
     let AdapticsEngineHandle {
-        its_over_tx,
+        end_streaming_tx,
         pattern_eval_handle,
         patteval_update_tx,
         ulh_streaming_handle,
-        network_send_rx,
-    } = create_threads(use_mock_streaming, websocket_bind_addr.is_none());
+        playback_updates_rx,
+    } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), tracking_data_rx);
 
-    let net_handle_opt = if let (Some(websocket_bind_addr), Some(network_send_rx)) = (websocket_bind_addr, network_send_rx) {
+    let net_handle_opt = if let Some(websocket_bind_addr) = websocket_bind_addr {
+        let playback_updates_rx = playback_updates_rx.unwrap();
         let thread = thread::Builder::new()
             .name("net".to_string())
             .spawn(move || {
                 println!("net thread starting...");
-                websocket::start_ws_server(&websocket_bind_addr, patteval_update_tx, network_send_rx);
+                websocket::start_ws_server(&websocket_bind_addr, patteval_update_tx, playback_updates_rx);
                 println!("net thread thread exiting...");
             })
             .unwrap();
@@ -148,10 +157,31 @@ pub fn run_threads_and_wait(use_mock_streaming: bool, websocket_bind_addr: Optio
     } else { None };
 
 
+    let lmc_tracking_handle = if let Some(tracking_data_tx) = tracking_data_tx {
+        let thread = thread::Builder::new()
+            .name("lmc-tracking".to_string())
+            .spawn(move || {
+                println!("tracking thread starting...");
+                tracking::leapmotion::start_tracking_loop(tracking_data_tx);
+                println!("tracking thread exiting...");
+            })
+            .unwrap();
+        Some(thread)
+    } else { None };
+
+
+    // wait for threads to exit
 
     pattern_eval_handle.join().unwrap();
-    its_over_tx.send(()).ok(); // ignore send error (if thread already exited)
+
+    end_streaming_tx.send(()).ok(); // ignore send error (if thread already exited)
     ulh_streaming_handle.join().unwrap()?; // unwrap panics, return errors
+
+    if let Some(lmc_tracking_handle) = lmc_tracking_handle {
+        tracking::leapmotion::TRACKING_IS_DONE.store(true, atomic::Ordering::Relaxed);
+        lmc_tracking_handle.join().unwrap();
+    }
+
     println!("waiting for net thread...");
     if let Some(h) = net_handle_opt { h.join().unwrap() }
 
@@ -228,7 +258,7 @@ static ENGINE_HANDLE_MAP: RwLock<Option<HashMap<HandleID, AdapticsEngineHandleFF
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback_updates: bool) -> HandleID {
-    let aeh = create_threads(use_mock_streaming, !enable_playback_updates);
+    let aeh = create_threads(use_mock_streaming, !enable_playback_updates, None);
     let ffi_handle = AdapticsEngineHandleFFI::new(aeh);
     // get map or create new map
     let mut map = ENGINE_HANDLE_MAP.write().unwrap();
@@ -242,7 +272,7 @@ pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback
 #[no_mangle]
 pub extern "C" fn deinit_adaptics_engine(handle_id: HandleID, mut err_msg: FFISliceMut<u8>) -> FFIError {
     let Some(handle) = ENGINE_HANDLE_MAP.write().unwrap().as_mut().and_then(|map| map.remove(&handle_id)) else { return FFIError::HandleIDNotFound; };
-    handle.aeh.its_over_tx.send(()).ok(); // ignore send error (if thread already exited)
+    handle.aeh.end_streaming_tx.send(()).ok(); // ignore send error (if thread already exited)
     if handle.aeh.pattern_eval_handle.join().is_err() { return FFIError::Panic; }
     match handle.aeh.ulh_streaming_handle.join() {
         Ok(Ok(())) => FFIError::Ok,
@@ -399,9 +429,9 @@ impl From<BrushAtAnimLocalTime> for UnityEvalResult {
 pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleID, eval_results: &mut FFISliceMut<UnityEvalResult>, num_evals: *mut u32) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
     let num_evals = deref_check_null!(num_evals);
-    let ffi_error: FFIError = match &handle.aeh.network_send_rx {
-        Some(network_send_rx) => {
-            match network_send_rx.try_recv() {
+    let ffi_error: FFIError = match &handle.aeh.playback_updates_rx {
+        Some(playback_updates_rx) => {
+            match playback_updates_rx.try_recv() {
                 Ok(PEWSServerMessage::PlaybackUpdate { evals }) => {
                     // copy as many evals as possible into eval_results
                     let eval_results_slice = eval_results.as_slice_mut();

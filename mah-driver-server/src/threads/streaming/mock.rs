@@ -9,7 +9,7 @@ pub fn start_mock_emitter(
 	callback_rate: f64,
 	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
 	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
-	its_over_rx: crossbeam_channel::Receiver<()>,
+	end_streaming_rx: crossbeam_channel::Receiver<()>,
 ) {
 	// println!("setting thread priority max");
 	// thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
@@ -22,7 +22,7 @@ pub fn start_mock_emitter(
 
 	assert!(device_tick_dur.as_secs_f64() > 0.0, "device_tick_dur must be > 0");
 	loop {
-		if its_over_rx.try_recv().is_ok() {
+		if end_streaming_rx.try_recv().is_ok() {
 			println!("mock streaming exiting...");
 			return;
 		}

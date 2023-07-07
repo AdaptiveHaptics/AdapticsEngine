@@ -6,6 +6,6 @@ extern "C" {
 
 #include "rust/cxx.h"
 
-struct RawTrackingCoords;
+struct LMCRawTrackingCoords;
 
-void OpenConnectionAndStartMessagePump(rust::Fn<void(RawTrackingCoords const &)> cb_func, rust::Fn<bool()> is_done);
+void OpenConnectionAndStartMessagePump(rust::Fn<void(LMCRawTrackingCoords const &)> cb_func, rust::Fn<bool()> is_done);

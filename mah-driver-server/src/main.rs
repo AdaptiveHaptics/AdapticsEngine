@@ -18,5 +18,9 @@ struct MAHServerArgs {
 fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
     let cli_args = MAHServerArgs::parse();
 
-    adaptics_engine::run_threads_and_wait(cli_args.use_mock_streaming, if cli_args.no_network { None } else { Some(cli_args.websocket_bind_addr) })
+    adaptics_engine::run_threads_and_wait(
+        cli_args.use_mock_streaming,
+        if cli_args.no_network { None } else { Some(cli_args.websocket_bind_addr) },
+        true,
+    )
 }

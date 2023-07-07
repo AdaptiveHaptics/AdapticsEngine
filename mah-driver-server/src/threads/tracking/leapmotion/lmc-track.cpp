@@ -37,7 +37,7 @@ void unwrap(eLeapRS res) {
 }
 
 // cb_func returns false to stop the message pump loop
-void OpenConnectionAndStartMessagePump(rust::Fn<void(RawTrackingCoords const &)> cb_func, rust::Fn<bool()> is_done) {
+void OpenConnectionAndStartMessagePump(rust::Fn<void(LMCRawTrackingCoords const &)> cb_func, rust::Fn<bool()> is_done) {
 	LEAP_CONNECTION connectionHandle;
 	eLeapRS res;
 	res = LeapCreateConnection(NULL, &connectionHandle);
@@ -71,7 +71,7 @@ void OpenConnectionAndStartMessagePump(rust::Fn<void(RawTrackingCoords const &)>
 					// handleDeviceFailureEvent(msg.device_failure_event);
 					break;
 				case eLeapEventType_Tracking: {
-					RawTrackingCoords tracking_coords;
+					LMCRawTrackingCoords tracking_coords;
 					const LEAP_TRACKING_EVENT* frame = msg.tracking_event;
 					if (
 						!frame || frame->tracking_frame_id <= 0 // There is no frame

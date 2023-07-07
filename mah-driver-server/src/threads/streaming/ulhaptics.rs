@@ -1,4 +1,5 @@
 mod ffi;
+use core::panic;
 use std::{pin::Pin, sync::Mutex, time::Instant, ops::Add};
 
 use ffi::*;
@@ -24,7 +25,7 @@ pub fn start_streaming_emitter(
 	callback_rate: f32,
 	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
 	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
-	its_over_rx: crossbeam_channel::Receiver<()>,
+	end_streaming_rx: crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send>> {
 	type CallbackFn = Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>;
 	static STATIC_ECALLBACK_MUTEX: Mutex<Option<CallbackFn>> = Mutex::new(None);
@@ -50,13 +51,15 @@ pub fn start_streaming_emitter(
 			eval_results_arr[i] = eval.into();
 		}
 	};
-	STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback));
+	if let Some(_cb) = STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback)) {
+		panic!("cannot have multiple streaming emitters running at once");
+	}
 
 	match new_ulh_streaming_controller(callback_rate, static_streaming_emission_callback) {
 		Ok(mut ulh_streaming_controller) => {
 			ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
 			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
-			its_over_rx.recv().unwrap();
+			end_streaming_rx.recv().unwrap();
 			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
 			drop(ulh_streaming_controller);
 			let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
