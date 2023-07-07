@@ -36,7 +36,7 @@ void unwrap(eLeapRS res) {
 	throw_if_error(res);
 }
 
-// cb_func returns false to stop the message pump loop
+
 void OpenConnectionAndStartMessagePump(rust::Fn<void(LMCRawTrackingCoords const &)> cb_func, rust::Fn<bool()> is_done) {
 	LEAP_CONNECTION connectionHandle;
 	eLeapRS res;
@@ -61,15 +61,9 @@ void OpenConnectionAndStartMessagePump(rust::Fn<void(LMCRawTrackingCoords const 
 				case eLeapEventType_ConnectionLost:
 					IsConnected = false;
 					break;
-				case eLeapEventType_Device:
-					// handleDeviceEvent(msg.device_event);
-					break;
-				case eLeapEventType_DeviceLost:
-					// handleDeviceLostEvent(msg.device_event);
-					break;
-				case eLeapEventType_DeviceFailure:
-					// handleDeviceFailureEvent(msg.device_failure_event);
-					break;
+				case eLeapEventType_Device: break;
+				case eLeapEventType_DeviceLost: break;
+				case eLeapEventType_DeviceFailure: break;
 				case eLeapEventType_Tracking: {
 					LMCRawTrackingCoords tracking_coords;
 					const LEAP_TRACKING_EVENT* frame = msg.tracking_event;
@@ -89,42 +83,20 @@ void OpenConnectionAndStartMessagePump(rust::Fn<void(LMCRawTrackingCoords const 
 						tracking_coords.z = leap_palm_position.z;
 					}
 
-					// cb_func(tracking_coords);
+					cb_func(tracking_coords);
 					break;
 				}
-				case eLeapEventType_ImageComplete:
-					// Ignore
-					break;
-				case eLeapEventType_ImageRequestError:
-					// Ignore
-					break;
-				case eLeapEventType_LogEvent:
-					// handleLogEvent(msg.log_event);
-					break;
-				case eLeapEventType_Policy:
-					// handlePolicyEvent(msg.policy_event);
-					break;
-				case eLeapEventType_ConfigChange:
-					// handleConfigChangeEvent(msg.config_change_event);
-					break;
-				case eLeapEventType_ConfigResponse:
-					// handleConfigResponseEvent(msg.config_response_event);
-					break;
-				case eLeapEventType_Image:
-					// handleImageEvent(msg.image_event);
-					break;
-				case eLeapEventType_PointMappingChange:
-					// handlePointMappingChangeEvent(msg.point_mapping_change_event);
-					break;
-				case eLeapEventType_LogEvents:
-					// handleLogEvents(msg.log_events);
-					break;
-				case eLeapEventType_HeadPose:
-					// handleHeadPoseEvent(msg.head_pose_event);
-					break;
-				default:
-					//discard unknown message types
-					printf("Unhandled message type %i.\n", msg.type);
+				case eLeapEventType_ImageComplete: break;
+				case eLeapEventType_ImageRequestError: break;
+				case eLeapEventType_LogEvent: break;
+				case eLeapEventType_Policy: break;
+				case eLeapEventType_ConfigChange: break;
+				case eLeapEventType_ConfigResponse: break;
+				case eLeapEventType_Image: break;
+				case eLeapEventType_PointMappingChange: break;
+				case eLeapEventType_LogEvents: break;
+				case eLeapEventType_HeadPose: break;
+				default: printf("[LMC-Track] Unhandled message type %i.\n", msg.type);
 			}
 		}
     }
