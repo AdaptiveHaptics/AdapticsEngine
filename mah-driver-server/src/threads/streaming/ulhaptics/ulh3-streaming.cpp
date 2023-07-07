@@ -12,37 +12,39 @@ void unwrap(result<void> res) {
 
 
 
+/*
+// for debugging
+struct CircleData
+{
+    double radius;
+    double control_point_speed;
+    float control_point_intensity;
+    LocalTimePoint start_time;
+};
+CircleData circle_data_g{ 0.02, 8.0, 1.0, LocalTimeClock::now() };
+CircleData* circle_data_ptr = &circle_data_g;
+void circle_callback_fordebug(const StreamingEmitter& emitter,
+    OutputInterval& interval,
+    const LocalTimePoint& submission_deadline)
+{
+    printf(".");
+    auto circle_data = circle_data_ptr;
+    double angular_frequency = circle_data->control_point_speed / circle_data->radius;
 
-// struct CircleData
-// {
-//     double radius;
-//     double control_point_speed;
-//     float control_point_intensity;
-//     LocalTimePoint start_time;
-// };
-// CircleData circle_data_g{ 0.02, 8.0, 1.0, LocalTimeClock::now() };
-// CircleData* circle_data_ptr = &circle_data_g;
-// void circle_callback_fordebug(const StreamingEmitter& emitter,
-//     OutputInterval& interval,
-//     const LocalTimePoint& submission_deadline)
-// {
-//     printf(".");
-//     auto circle_data = circle_data_ptr;
-//     double angular_frequency = circle_data->control_point_speed / circle_data->radius;
+    for (auto& sample : interval) {
+        std::chrono::duration<double> t = sample - circle_data->start_time;
+        double angle = t.count() * angular_frequency;
 
-//     for (auto& sample : interval) {
-//         std::chrono::duration<double> t = sample - circle_data->start_time;
-//         double angle = t.count() * angular_frequency;
+        Vector3 p;
+        p.x = static_cast<float>(std::cos(angle) * circle_data->radius);
+        p.y = static_cast<float>(std::sin(angle) * circle_data->radius);
+        p.z = 0.2f;
 
-//         Vector3 p;
-//         p.x = static_cast<float>(std::cos(angle) * circle_data->radius);
-//         p.y = static_cast<float>(std::sin(angle) * circle_data->radius);
-//         p.z = 0.2f;
-
-//         sample.controlPoint(0).setPosition(p);
-//         sample.controlPoint(0).setIntensity(circle_data->control_point_intensity);
-//     }
-// }
+        sample.controlPoint(0).setPosition(p);
+        sample.controlPoint(0).setIntensity(circle_data->control_point_intensity);
+    }
+}
+*/
 
 using JavascriptMilliseconds = std::chrono::duration<double, std::milli>;
 
@@ -92,8 +94,13 @@ void ecallback_shim(
 ULHStreamingController::ULHStreamingController(float callback_rate, rust_ecallback cb_func) : lib(), emitter((unwrap(lib.connect()), lib)) {
     auto device_result = lib.findDevice(DeviceFeatures::StreamingHaptics);
     throw_if_error(device_result);
+	auto device = device_result.value();
 
-	unwrap(emitter.addDevice(device_result.value()));
+ 	// auto transform_result = device.getKitTransform();
+	// throw_if_error(transform_result);
+	// Transform kit_transform = transform_result.value();
+
+	unwrap(emitter.addDevice(device));
 	unwrap(emitter.setControlPointCount(1, AdjustRate::All));
 	// std::function<void(const StreamingEmitter&, OutputInterval&, const LocalTimePoint&)>
 	EmissionCallbackFunction callback = std::bind(ecallback_shim, cb_func, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);

@@ -4,7 +4,8 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/Program Files/Ultraleap Haptics/include"
+                "C:/Program Files/Ultraleap Haptics/include",
+                "C:/Program Files/Ultraleap/LeapSDK/include"
             ],
             "defines": [
                 "_DEBUG",
