@@ -5,6 +5,7 @@ use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAni
 use serde::{Deserialize, Serialize};
 use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::PEWSServerMessage, tracking::TrackingFrame};
 
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
@@ -31,8 +32,10 @@ pub enum PatternEvalCall {
     EvalBatch{ time_arr_instants: Vec<Instant>},
 }
 
+/// if seconds_per_playback_update is true, send playback updates prior to applying tracking translation
 pub fn pattern_eval_loop(
 	seconds_per_playback_update: f64,
+	send_untracked_playback_updates: bool,
 	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,
 	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
 	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
@@ -81,8 +84,10 @@ pub fn pattern_eval_loop(
 						}).collect();
 
 
-						// send untracked evals to network
-						if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr); }
+						#[allow(clippy::collapsible_if)]
+						if send_untracked_playback_updates {
+							if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr); }
+						}
 
 						// apply tracking
 						let eval_arr_tracking_adjusted = if enable_tracking {
@@ -97,6 +102,11 @@ pub fn pattern_eval_loop(
 								eval_arr
 							} else { eval_arr }
 						} else { eval_arr };
+
+						#[allow(clippy::collapsible_if)]
+						if !send_untracked_playback_updates {
+							if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr_tracking_adjusted); }
+						}
 
 						// send tracked evals to haptic device
 						patteval_return_tx.send(eval_arr_tracking_adjusted).unwrap();

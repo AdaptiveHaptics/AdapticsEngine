@@ -18,6 +18,7 @@ use threads::tracking;
 const CALLBACK_RATE: f64 = 500.0;
 const SECONDS_PER_PLAYBACK_UPDATE: f64 = 1.0 / 30.0;
 const DEVICE_UPDATE_RATE: u64 = 20000; //20khz
+const SEND_UNTRACKED_PLAYBACK_UPDATES: bool = false;
 
 
 #[derive(Debug)]
@@ -69,6 +70,7 @@ fn create_threads(
 
             let res = pattern_eval::pattern_eval_loop(
                 SECONDS_PER_PLAYBACK_UPDATE,
+                SEND_UNTRACKED_PLAYBACK_UPDATES,
                 patteval_call_rx,
                 patteval_update_rx,
                 patteval_return_tx,
