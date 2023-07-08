@@ -1,9 +1,13 @@
 [package]
 name = "adaptics-engine"
+description = "Playback engine for Adaptics patterns"
 version = "0.4.0"
 edition = "2021"
-links = "UltraleapHaptics"
+# links = "UltraleapHaptics" # note that both UltraleapHaptics and LeapC are linked with cxx
+# publish = false # due to linking to both UltraleapHaptics and LeapC with cxx (?)
 license = "MPL-2.0"
+repository = "https://github.com/AdaptiveHaptics/AdapticsEngine"
+homepage = "https://github.com/AdaptiveHaptics"
 
 [[bin]]
 name = "adaptics-engine-cli"
