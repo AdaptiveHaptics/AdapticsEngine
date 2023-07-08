@@ -3,7 +3,7 @@ name = "adaptics-engine"
 version = "0.4.0"
 edition = "2021"
 links = "UltraleapHaptics"
-
+license = "MPL-2.0"
 
 [[bin]]
 name = "adaptics-engine-cli"
