@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "mah-driver-server",
+    "adaptics-engine",
     "mah-pattern-evaluator",
 ]
