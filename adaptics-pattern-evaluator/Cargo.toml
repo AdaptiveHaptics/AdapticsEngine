@@ -1,8 +1,11 @@
 [package]
-name = "mah-pattern-evaluator"
+name = "adaptics-pattern-evaluator"
+description = "Low-level evaluation for Adaptics patterns"
 version = "0.3.0"
 edition = "2021"
 license = "MPL-2.0"
+repository = "https://github.com/AdaptiveHaptics/AdapticsEngine"
+homepage = "https://github.com/AdaptiveHaptics"
 
 # [target.'cfg(target_arch = "wasm32")'.features]
 # default = ["rand/wasm-bindgen"]

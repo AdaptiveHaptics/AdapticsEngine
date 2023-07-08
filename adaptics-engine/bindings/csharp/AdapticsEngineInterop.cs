@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 210496218044776374ul)
+            if (api_version != 968130938651704305ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (210496218044776374). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (968130938651704305). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -144,11 +144,17 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// Populate `eval_results` with the latest evaluation results.
+        /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
+        ///
         /// # Safety
         /// `num_evals` must be a valid pointer to a u32
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_get_playback_updates")]
         public static extern FFIError adaptics_engine_get_playback_updates(ulong handle_id, ref SliceMutUnityEvalResult eval_results, out uint num_evals);
 
+        /// Populate `eval_results` with the latest evaluation results.
+        /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
+        ///
         /// # Safety
         /// `num_evals` must be a valid pointer to a u32
         public static void adaptics_engine_get_playback_updates(ulong handle_id, UnityEvalResult[] eval_results, out uint num_evals)

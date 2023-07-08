@@ -424,6 +424,9 @@ impl From<BrushAtAnimLocalTime> for UnityEvalResult {
     }
 }
 
+/// Populate `eval_results` with the latest evaluation results.
+/// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
+///
 /// # Safety
 /// `num_evals` must be a valid pointer to a u32
 #[ffi_function]

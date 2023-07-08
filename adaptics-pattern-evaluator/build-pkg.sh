@@ -1,8 +1,8 @@
 set -ex
 
 
-if ! grep -q 'name = "mah-pattern-evaluator"' Cargo.toml; then
-	echo "This script must be run from the "subroot" for the mah-pattern-evaluator package"
+if ! grep -q 'name = "adaptics-pattern-evaluator"' Cargo.toml; then
+	echo "This script must be run from the "subroot" for the adaptics-pattern-evaluator package"
 	exit 1
 fi
 

@@ -2,5 +2,5 @@
 
 members = [
     "adaptics-engine",
-    "mah-pattern-evaluator",
+    "adaptics-pattern-evaluator",
 ]
