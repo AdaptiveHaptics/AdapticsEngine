@@ -1,5 +1,3 @@
-use std::sync::atomic::AtomicBool;
-
 use leapc_dyn_sys::*;
 
 use super::TrackingFrame;
@@ -152,7 +150,7 @@ fn lmc_raw_to_tracking_frame(raw: &LMCRawTrackingCoords) -> TrackingFrame {
 	}
 }
 
-pub fn start_tracking_loop<'a>(
+pub fn start_tracking_loop(
 	tracking_data_tx: crossbeam_channel::Sender<TrackingFrame>,
 	end_tracking_rx: crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {

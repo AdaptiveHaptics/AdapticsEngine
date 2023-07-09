@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, self, AtomicBool};
+use std::sync::atomic::{AtomicU64, self};
 use std::sync::RwLock;
 use std::thread;
 use interoptopus::patterns::slice::FFISliceMut;
