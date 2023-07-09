@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 968130938651704305ul)
+            if (api_version != 15014056332720899612ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (968130938651704305). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (15014056332720899612). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -50,9 +50,13 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// Updates the pattern to be played.
+        /// For further information, see [PatternEvalUpdate::Pattern].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_pattern")]
         public static extern FFIError adaptics_engine_update_pattern(ulong handle_id, string pattern_json);
 
+        /// Updates the pattern to be played.
+        /// For further information, see [PatternEvalUpdate::Pattern].
         public static void adaptics_engine_update_pattern_checked(ulong handle_id, string pattern_json)
         {
             var rval = adaptics_engine_update_pattern(handle_id, pattern_json);;
@@ -62,9 +66,19 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// Used to start and stop playback.
+        /// For further information, see [PatternEvalUpdate::Playstart].
+        ///
+        /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+        /// Use [adaptics_engine_update_time()] or [adaptics_engine_update_parameters()] to set the time parameter.
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_playstart")]
         public static extern FFIError adaptics_engine_update_playstart(ulong handle_id, double playstart, double playstart_offset);
 
+        /// Used to start and stop playback.
+        /// For further information, see [PatternEvalUpdate::Playstart].
+        ///
+        /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+        /// Use [adaptics_engine_update_time()] or [adaptics_engine_update_parameters()] to set the time parameter.
         public static void adaptics_engine_update_playstart_checked(ulong handle_id, double playstart, double playstart_offset)
         {
             var rval = adaptics_engine_update_playstart(handle_id, playstart, playstart_offset);;
@@ -74,9 +88,17 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// Used to update all evaluator_params.
+        ///
+        /// Accepts a JSON string representing the evaluator parameters. See [PatternEvaluatorParameters].
+        /// For further information, see [PatternEvalUpdate::Parameters].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_parameters")]
         public static extern FFIError adaptics_engine_update_parameters(ulong handle_id, string evaluator_params);
 
+        /// Used to update all evaluator_params.
+        ///
+        /// Accepts a JSON string representing the evaluator parameters. See [PatternEvaluatorParameters].
+        /// For further information, see [PatternEvalUpdate::Parameters].
         public static void adaptics_engine_update_parameters_checked(ulong handle_id, string evaluator_params)
         {
             var rval = adaptics_engine_update_parameters(handle_id, evaluator_params);;
@@ -86,9 +108,13 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// Resets all evaluator parameters to their default values.
+        /// For further information, see [PatternEvalUpdate::Parameters].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_reset_parameters")]
         public static extern FFIError adaptics_engine_reset_parameters(ulong handle_id);
 
+        /// Resets all evaluator parameters to their default values.
+        /// For further information, see [PatternEvalUpdate::Parameters].
         public static void adaptics_engine_reset_parameters_checked(ulong handle_id)
         {
             var rval = adaptics_engine_reset_parameters(handle_id);;
@@ -98,15 +124,23 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
-        /// Will be overwritten by playstart time computation.
-        /// However, the time parameter is needed to correctly start in the middle of a pattern. (next_eval_params.last_eval_pattern_time will be set to this when a new playstart is received)
-        /// This will need to be called before playstart
+        /// Updates `evaluator_params.time`.
+        ///
+        /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+        ///
+        /// # Notes
+        /// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
+        /// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_time")]
         public static extern FFIError adaptics_engine_update_time(ulong handle_id, double time);
 
-        /// Will be overwritten by playstart time computation.
-        /// However, the time parameter is needed to correctly start in the middle of a pattern. (next_eval_params.last_eval_pattern_time will be set to this when a new playstart is received)
-        /// This will need to be called before playstart
+        /// Updates `evaluator_params.time`.
+        ///
+        /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+        ///
+        /// # Notes
+        /// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
+        /// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
         public static void adaptics_engine_update_time_checked(ulong handle_id, double time)
         {
             var rval = adaptics_engine_update_time(handle_id, time);;
@@ -116,9 +150,15 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
+        /// Updates all user parameters.
+        /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+        /// For further information, see [PatternEvalUpdate::UserParameters].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_user_parameters")]
         public static extern FFIError adaptics_engine_update_user_parameters(ulong handle_id, string user_parameters);
 
+        /// Updates all user parameters.
+        /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+        /// For further information, see [PatternEvalUpdate::UserParameters].
         public static void adaptics_engine_update_user_parameters_checked(ulong handle_id, string user_parameters)
         {
             var rval = adaptics_engine_update_user_parameters(handle_id, user_parameters);;
@@ -128,13 +168,13 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
-        /// # Safety
-        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        /// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
+        /// For further information, see [PatternEvalUpdate::GeoTransformMatrix].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_geo_transform_matrix")]
         public static extern FFIError adaptics_engine_update_geo_transform_matrix(ulong handle_id, GeoMatrix geo_matrix);
 
-        /// # Safety
-        /// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+        /// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
+        /// For further information, see [PatternEvalUpdate::GeoTransformMatrix].
         public static void adaptics_engine_update_geo_transform_matrix_checked(ulong handle_id, GeoMatrix geo_matrix)
         {
             var rval = adaptics_engine_update_geo_transform_matrix(handle_id, geo_matrix);;
@@ -175,7 +215,7 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
-        /// Guard function used by backends.
+        /// Guard function used by bindings.
         ///
         /// Change impl version in this comment to force bump the API version.
         /// impl_version: 1
@@ -184,6 +224,7 @@ namespace com.github.AdaptiveHaptics
 
     }
 
+    /// Defines a 4x4 matrix in row-major order for FFI.
     [Serializable]
     [StructLayout(LayoutKind.Sequential)]
     public partial struct GeoMatrix

@@ -10,10 +10,11 @@ use pattern_evaluator::{BrushAtAnimLocalTime, PatternEvaluator};
 
 pub mod threads;
 use threads::pattern::pattern_eval;
-use pattern_eval::PatternEvalUpdate;
+pub use pattern_eval::PatternEvalUpdate;
 use threads::streaming;
 use threads::net::websocket::{self, PEWSServerMessage};
 use threads::tracking;
+pub use pattern_evaluator::PatternEvaluatorParameters;
 
 const CALLBACK_RATE: f64 = 500.0;
 const SECONDS_PER_PLAYBACK_UPDATE: f64 = 1.0 / 30.0;
@@ -41,6 +42,7 @@ impl std::error::Error for TLError {
     }
 }
 
+/// Handle to the Adaptics Engine threads and channels.
 pub struct AdapticsEngineHandle {
     end_streaming_tx: crossbeam_channel::Sender<()>,
     pattern_eval_handle: thread::JoinHandle<()>,
@@ -129,6 +131,8 @@ fn create_threads(
 }
 
 
+/// Runs the main threads and waits for them to exit.
+/// This is the main function for the CLI.
 pub fn run_threads_and_wait(
     use_mock_streaming: bool,
     websocket_bind_addr: Option<String>,
@@ -237,6 +241,7 @@ impl<T> From<Result<(), crossbeam_channel::SendError<T>>> for FFIError {
     }
 }
 
+/// AdapticsEngineHandleFFI is a simple opaque wrapper around AdapticsEngineHandle. It may also be used for error message reporting through the C API.
 #[ffi_type(opaque)]
 #[repr(C)]
 pub struct AdapticsEngineHandleFFI {
@@ -310,6 +315,8 @@ macro_rules! deserialize_json_parameter {
     };
 }
 
+/// Updates the pattern to be played.
+/// For further information, see [PatternEvalUpdate::Pattern].
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_pattern(handle_id: HandleID, pattern_json: AsciiPointer) -> FFIError {
@@ -318,6 +325,11 @@ pub extern "C" fn adaptics_engine_update_pattern(handle_id: HandleID, pattern_js
     ffi_error
 }
 
+/// Used to start and stop playback.
+/// For further information, see [PatternEvalUpdate::Playstart].
+///
+/// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+/// Use [adaptics_engine_update_time()] or [adaptics_engine_update_parameters()] to set the time parameter.
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_playstart(handle_id: HandleID, playstart: f64, playstart_offset: f64) -> FFIError {
@@ -326,6 +338,10 @@ pub extern "C" fn adaptics_engine_update_playstart(handle_id: HandleID, playstar
     ffi_error
 }
 
+/// Used to update all evaluator_params.
+///
+/// Accepts a JSON string representing the evaluator parameters. See [PatternEvaluatorParameters].
+/// For further information, see [PatternEvalUpdate::Parameters].
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_parameters(handle_id: HandleID, evaluator_params: AsciiPointer) -> FFIError {
@@ -335,17 +351,24 @@ pub extern "C" fn adaptics_engine_update_parameters(handle_id: HandleID, evaluat
     ffi_error
 }
 
+/// Resets all evaluator parameters to their default values.
+/// For further information, see [PatternEvalUpdate::Parameters].
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_reset_parameters(handle_id: HandleID) -> FFIError {
     get_handle_from_id!(handle <- handle_id);
-    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: pattern_evaluator::PatternEvaluatorParameters::default() }).into();
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Parameters { evaluator_params: PatternEvaluatorParameters::default() }).into();
     ffi_error
 }
 
-/// Will be overwritten by playstart time computation.
-/// However, the time parameter is needed to correctly start in the middle of a pattern. (next_eval_params.last_eval_pattern_time will be set to this when a new playstart is received)
-/// This will need to be called before playstart
+/// Updates `evaluator_params.time`.
+///
+/// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+// This works because `next_eval_params.last_eval_pattern_time` will be updated to `evaluator_params.time` when a new playstart is received.
+///
+/// # Notes
+/// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
+/// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_time(handle_id: HandleID, time: f64) -> FFIError {
@@ -354,6 +377,9 @@ pub extern "C" fn adaptics_engine_update_time(handle_id: HandleID, time: f64) ->
     ffi_error
 }
 
+/// Updates all user parameters.
+/// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+/// For further information, see [PatternEvalUpdate::UserParameters].
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_user_parameters(handle_id: HandleID, user_parameters: AsciiPointer) -> FFIError {
@@ -363,13 +389,16 @@ pub extern "C" fn adaptics_engine_update_user_parameters(handle_id: HandleID, us
     ffi_error
 }
 
+
+/// Defines a 4x4 matrix in row-major order for FFI.
 #[ffi_type]
 #[repr(C)]
 pub struct GeoMatrix {
     pub data: [f64; 16],
 }
-/// # Safety
-/// `handle` must be a valid pointer to an `AdapticsEngineHandle` allocated by `init_adaptics_engine`
+
+/// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
+/// For further information, see [PatternEvalUpdate::GeoTransformMatrix].
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_geo_transform_matrix(handle_id: HandleID, geo_matrix: GeoMatrix) -> FFIError {
@@ -459,7 +488,7 @@ pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleI
 
 
 
-/// Guard function used by backends.
+/// Guard function used by bindings.
 ///
 /// Change impl version in this comment to force bump the API version.
 /// impl_version: 1
@@ -469,6 +498,7 @@ pub extern "C" fn ffi_api_guard() -> interoptopus::patterns::api_guard::APIVersi
     ffi_inventory().into()
 }
 
+#[doc(hidden)]
 pub fn ffi_inventory() -> Inventory {
 	InventoryBuilder::new()
         .register(function!(init_adaptics_engine))

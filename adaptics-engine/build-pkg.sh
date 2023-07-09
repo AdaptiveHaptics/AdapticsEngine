@@ -11,7 +11,8 @@ mkdir "$pkg_dir"
 
 
 cargo clippy
-cargo test --release # build and test the release version
+cargo test --release
+cargo build --release
 
 cp ../target/release/adaptics-engine-cli.exe "$pkg_dir/adaptics-engine-cli.exe"
 mkdir "$pkg_dir/unity"

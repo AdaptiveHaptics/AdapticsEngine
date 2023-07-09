@@ -13,9 +13,12 @@ pub enum PatternEvalUpdate {
 	#[serde(rename="update_pattern")]
     Pattern{ pattern_json: String },
 	#[serde(rename="update_playstart")]
-	/// if playstart is 0.0, then the pattern is stopped. Otherwise, it is started at the time given by `now() + playstart_offset` to account for network latency/time desynchronization.
-	/// Network latency would cause `rtt/2` of the pattern playback to be skipped, even if the time between machines is perfectly synced
-	/// Time desynchronization would cause generally unpredicateable playback behavior
+	/// if playstart is 0.0, then the pattern is stopped. Otherwise, it is started at the time given by `now() + playstart_offset`.
+	///
+	/// I know this is unecessarily complicated. I was not sure how to unify the playback implementations in the designer interface and the engine, causing this mess.
+	// There is not much point in sending playstart, since playback is relative to playstart_offset, which means we could just have Play(at_pattern_time), Pause(), Resume(), Stop() commands and latency would be ignored the same way it is now.
+	// A lot of this was just to have quick integration with the designer interface, where I wasnt sure exactly what access to playback/evaluation internals would be needed.
+	// If at some point the engine playback code can be packaged into WASM for the designer, this will probably be cleaned up.
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
 	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },

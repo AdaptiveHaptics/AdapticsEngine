@@ -1,9 +1,9 @@
 use clap::Parser;
 // ## !NOTE: do NOT use mod. try to use everything through the lib crate
 
-/// Adaptics Engine CLI (https://github.com/AdaptiveHaptics/AdapticsEngine)
+/// Adaptics Engine CLI <https://github.com/AdaptiveHaptics/AdapticsEngine>
 ///
-/// Allows realtime playback of haptic patterns being developed in the designer (https://adaptivehaptics.github.io/AdapticsDesigner/), using a WebSocket connection
+/// Allows realtime playback of haptic patterns being developed in the designer <https://adaptivehaptics.github.io/AdapticsDesigner/>, using a WebSocket connection
 #[derive(Parser, Debug)]
 #[command(author, version, long_about, verbatim_doc_comment)]
 struct AdapticsEngineCliArgs {
