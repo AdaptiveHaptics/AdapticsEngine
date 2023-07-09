@@ -20,6 +20,7 @@ path = "src/lib.rs"
 [dependencies]
 crossbeam-channel = "0.5"
 adaptics-pattern-evaluator = { path = "../adaptics-pattern-evaluator", version = "0.3" }
+leapc-dyn-sys = { path = "../leapc-dyn-sys", version = "0.1" }
 serde = "1.0"
 serde_json = "1.0"
 # thread-priority = "0.13"

@@ -13,14 +13,17 @@ struct MAHServerArgs {
 
     #[clap(short, long)]
     no_network: bool,
+
+    #[clap(short, long)]
+    no_tracking: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
+fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli_args = MAHServerArgs::parse();
 
     adaptics_engine::run_threads_and_wait(
         cli_args.use_mock_streaming,
         if cli_args.no_network { None } else { Some(cli_args.websocket_bind_addr) },
-        true,
+        !cli_args.no_tracking,
     )
 }

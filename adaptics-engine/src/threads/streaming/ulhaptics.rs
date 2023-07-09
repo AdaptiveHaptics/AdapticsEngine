@@ -26,7 +26,7 @@ pub fn start_streaming_emitter(
 	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
 	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
 	end_streaming_rx: crossbeam_channel::Receiver<()>,
-) -> Result<(), Box<dyn std::error::Error + Send>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	type CallbackFn = Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>;
 	static STATIC_ECALLBACK_MUTEX: Mutex<Option<CallbackFn>> = Mutex::new(None);
 

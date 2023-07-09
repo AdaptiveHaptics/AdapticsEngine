@@ -3,4 +3,5 @@
 members = [
     "adaptics-engine",
     "adaptics-pattern-evaluator",
+    "leapc-dyn-sys",
 ]

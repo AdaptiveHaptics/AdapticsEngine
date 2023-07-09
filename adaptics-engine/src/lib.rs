@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, self};
+use std::sync::atomic::{AtomicU64, self, AtomicBool};
 use std::sync::RwLock;
 use std::thread;
 use interoptopus::patterns::slice::FFISliceMut;
@@ -45,7 +45,7 @@ pub struct AdapticsEngineHandle {
     end_streaming_tx: crossbeam_channel::Sender<()>,
     pattern_eval_handle: thread::JoinHandle<()>,
     patteval_update_tx: crossbeam_channel::Sender<pattern_eval::PatternEvalUpdate>,
-    ulh_streaming_handle: thread::JoinHandle<Result<(), Box<dyn std::error::Error + std::marker::Send>>>,
+    ulh_streaming_handle: thread::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>,
     playback_updates_rx: Option<crossbeam_channel::Receiver<websocket::PEWSServerMessage>>,
 }
 
@@ -88,7 +88,7 @@ fn create_threads(
     let ulh_streaming_handle = if !use_mock_streaming {
         thread::Builder::new()
             .name("ulh-streaming".to_string())
-            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send>> {
+            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("ulhaptics streaming thread starting...");
 
                 streaming::ulhaptics::start_streaming_emitter(
@@ -133,7 +133,7 @@ pub fn run_threads_and_wait(
     use_mock_streaming: bool,
     websocket_bind_addr: Option<String>,
     enable_tracking: bool,
-) -> Result<(), Box<dyn std::error::Error + Send>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let (tracking_data_tx, tracking_data_rx) = if enable_tracking { let (s, r) = crossbeam_channel::unbounded(); (Some(s), Some(r)) } else { (None, None) };
 
@@ -158,14 +158,13 @@ pub fn run_threads_and_wait(
         Some(thread)
     } else { None };
 
-
+    let (end_tracking_tx, end_tracking_rx) = crossbeam_channel::bounded(1);
     let lmc_tracking_handle = if let Some(tracking_data_tx) = tracking_data_tx {
         let thread = thread::Builder::new()
             .name("lmc-tracking".to_string())
-            .spawn(move || {
+            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("tracking thread starting...");
-                tracking::leapmotion::start_tracking_loop(tracking_data_tx);
-                println!("tracking thread exiting...");
+                tracking::leapmotion::start_tracking_loop(tracking_data_tx, end_tracking_rx)
             })
             .unwrap();
         Some(thread)
@@ -180,8 +179,8 @@ pub fn run_threads_and_wait(
     ulh_streaming_handle.join().unwrap()?; // unwrap panics, return errors
 
     if let Some(lmc_tracking_handle) = lmc_tracking_handle {
-        tracking::leapmotion::TRACKING_IS_DONE.store(true, atomic::Ordering::Relaxed);
-        lmc_tracking_handle.join().unwrap();
+        end_tracking_tx.send(()).ok(); // ignore send error (if thread already exited)
+        lmc_tracking_handle.join().unwrap()?; // unwrap panics, return errors
     }
 
     println!("waiting for net thread...");

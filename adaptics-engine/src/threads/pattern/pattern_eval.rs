@@ -152,6 +152,9 @@ pub fn pattern_eval_loop(
 						}
 					},
 					PatternEvalUpdate::Tracking { enabled } => {
+						if tracking_data_rx.is_none() {
+							eprintln!("error: tracking requested but no tracking data channel is connected (tracking was disabled)!");
+						}
 						enable_tracking = enabled;
 					},
 
