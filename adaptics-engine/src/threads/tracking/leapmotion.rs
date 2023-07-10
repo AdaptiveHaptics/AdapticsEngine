@@ -1,10 +1,8 @@
 use leapc_dyn_sys::*;
 
+use crate::TLError;
+
 use super::TrackingFrame;
-
-
-const LEAP_LIBRARY_NAME: &str = "LeapC";
-const LEAP_LIBRARY_PATH: &str = "C:/Program Files/Ultraleap/LeapSDK/lib/x64";
 
 pub struct LMCRawTrackingCoords {
 	pub has_hand: bool,
@@ -18,7 +16,10 @@ struct LeapCSafe {
 }
 impl LeapCSafe {
 	fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-		let lib = unsafe { LeapC::new(LEAP_LIBRARY_NAME) }.or_else(|_e| unsafe { LeapC::new(LEAP_LIBRARY_PATH) })?;
+		let lib = unsafe { load_leapc_library() }.map_err(|_e|
+			TLError::new(&format!("Failed to find and load {} dynamic library. Searched for '{}' and '{}'.", LIBRARY_BASENAME, LIBRARY_NAME, LIBRARY_FULLPATH))
+		)?;
+
 		// I tried extracted the functions I wanted out of the `Result`s here, and keeping the reference on LeapCSafe, but this doesnt work:
 		// 	Keeping just references to the functions causes the libloading __library to be dropped, causing the DLL to be unloaded (really dumb, I think this might be considered a bug on bindgen's usage of libloading).
 		// 	Alternatively, keeping the reference to `lib` in the LeapCSafe causes LeapCSafe to be self referencing, which is itself a headache.
