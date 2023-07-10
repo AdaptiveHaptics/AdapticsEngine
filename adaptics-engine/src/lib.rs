@@ -422,7 +422,7 @@ pub extern "C" fn adaptics_engine_update_geo_transform_matrix(handle_id: HandleI
 /// !NOTE: y and z are swapped for Unity
 #[ffi_type]
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct UnityEvalCoords {
     pub x: f64,
     pub y: f64,
@@ -431,7 +431,7 @@ pub struct UnityEvalCoords {
 /// !NOTE: y and z are swapped for Unity
 #[ffi_type]
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct UnityEvalResult {
     /// !NOTE: y and z are swapped for Unity
     pub coords: UnityEvalCoords,
@@ -519,16 +519,106 @@ pub fn ffi_inventory() -> Inventory {
 
 #[cfg(test)]
 mod test {
-    use std::ffi::CString;
+    use std::{ffi::CString, time::{UNIX_EPOCH, SystemTime}};
 
     use crate::*;
 
+    fn assert_good_deinit(handle_id: HandleID) {
+        let err_msg_u8 = &mut [0u8; 1024];
+        let err_msg = FFISliceMut::from_slice(err_msg_u8);
+        let rv = deinit_adaptics_engine(handle_id, err_msg);
+        assert_eq!(rv, FFIError::Ok);
+        assert_eq!(err_msg_u8[0], 0u8);
+    }
+
     #[test]
     fn test_update_user_params() {
-        let handle = init_adaptics_engine(true, false);
+        let handle_id = init_adaptics_engine(true, false);
         let cstr = CString::new("{\"dist\": 74.446439743042}").unwrap();
         let ap = AsciiPointer::from_cstr(&cstr);
-        let rv = adaptics_engine_update_user_parameters(handle, ap);
+        let rv = adaptics_engine_update_user_parameters(handle_id, ap);
         assert_eq!(rv, FFIError::Ok);
+        assert_good_deinit(handle_id);
+    }
+
+    #[test]
+    fn test_playback_updates_false() {
+        let handle_id = init_adaptics_engine(true, false);
+        let mut eval_results = Vec::with_capacity(1024);
+        let mut eval_results = FFISliceMut::from_slice(&mut eval_results);
+        let mut num_evals = 12345u32;
+        let rv = unsafe { adaptics_engine_get_playback_updates(handle_id, &mut eval_results, &mut num_evals) };
+        assert_eq!(rv, FFIError::EnablePlaybackUpdatesWasFalse);
+        assert_eq!(num_evals, 12345u32);
+        assert_good_deinit(handle_id);
+    }
+
+    #[test]
+    fn test_playback_with_updates() {
+        let handle_id = init_adaptics_engine(true, true);
+        let mut eval_results = vec![UnityEvalResult::default(); 1024];
+        let mut eval_results_slice = FFISliceMut::from_slice(&mut eval_results);
+        let mut num_evals = 0u32;
+        let rv = unsafe { adaptics_engine_get_playback_updates(handle_id, &mut eval_results_slice, &mut num_evals) };
+        assert_eq!(rv, FFIError::Ok);
+        assert_eq!(num_evals, 0u32);
+
+
+        {
+            let pat = pattern_evaluator::MidAirHapticsAnimationFileFormat {
+                data_format: pattern_evaluator::MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
+                revision: pattern_evaluator::DataFormatRevision::CurrentRevision,
+                name: "DEFAULT_PATTERN".to_string(),
+                keyframes: vec![],
+                pattern_transform: Default::default(),
+                user_parameter_definitions: HashMap::new(),
+            };
+            let pat = serde_json::to_string(&pat).unwrap();
+            let pat = CString::new(pat).unwrap();
+            let pat = AsciiPointer::from_cstr(&pat);
+            let rv = adaptics_engine_update_pattern(handle_id, pat);
+            assert_eq!(rv, FFIError::Ok);
+        }
+
+        {
+            let pep = PatternEvaluatorParameters::default();
+            let pep = serde_json::to_string(&pep).unwrap();
+            let pep = CString::new(pep).unwrap();
+            let pep = AsciiPointer::from_cstr(&pep);
+            let rv = adaptics_engine_update_parameters(handle_id, pep);
+            assert_eq!(rv, FFIError::Ok);
+        }
+
+        let playstart = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64() * 1000.0;
+        let playstart_offset = 0.0;
+        let rv = adaptics_engine_update_playstart(handle_id, playstart, playstart_offset);
+        assert_eq!(rv, FFIError::Ok);
+
+        {
+            let engine_map = ENGINE_HANDLE_MAP.read().unwrap();
+            let handle = engine_map.as_ref().unwrap().get(&handle_id).unwrap();
+            let channel = handle.aeh.playback_updates_rx.as_ref().unwrap();
+            let mut sel = crossbeam_channel::Select::new();
+            let recv = sel.recv(channel);
+            let op = sel.ready_timeout(std::time::Duration::from_secs_f64(SECONDS_PER_PLAYBACK_UPDATE * 1.5)).unwrap(); //should take ~SECONDS_PER_PLAYBACK_UPDATE
+            assert_eq!(op, recv);
+        }
+
+        let rv = unsafe { adaptics_engine_get_playback_updates(handle_id, &mut eval_results_slice, &mut num_evals) };
+        assert_eq!(rv, FFIError::Ok);
+        assert!(num_evals <= 1024u32); // assert did not overflow
+        assert!(num_evals > 0u32); // assert got at least one eval
+
+        // the exact value will vary to due lag (because mock emitter relies on real time) (typically only by 1 or 2 evals)
+        assert!((num_evals as f64) > SECONDS_PER_PLAYBACK_UPDATE * DEVICE_UPDATE_RATE as f64 * 0.75); // assert got at least 75% of the evals for the time period
+        assert!((num_evals as f64) < SECONDS_PER_PLAYBACK_UPDATE * DEVICE_UPDATE_RATE as f64 * 1.25); // assert got at most 125% of the evals for the time period
+
+        eval_results.truncate(num_evals as usize);
+        assert_eq!(eval_results[0].coords, UnityEvalCoords { x: 0.0, y: 0.2, z: 0.0 });
+        assert_eq!(eval_results[0].intensity, 1.0);
+        assert!(eval_results[0].pattern_time < 2.0 * 1000.0 * (1.0 / CALLBACK_RATE), "pattern_time: {} !< {}", eval_results[0].pattern_time, 1.0 / CALLBACK_RATE); // assert first pattern_time is less than 2.0 callback periods ahead
+
+
+        assert_good_deinit(handle_id);
     }
 }
