@@ -42,13 +42,18 @@ pub fn start_streaming_emitter(
 		}
 	}
 	let streaming_emission_callback = move |time_arr_ms: &CxxVector<MilSec>, eval_results_arr: Pin<&mut CxxVector<EvalResult>> | {
-		patteval_call_tx.send(PatternEvalCall::EvalBatch{
+		if patteval_call_tx.send(PatternEvalCall::EvalBatch{
 			time_arr_instants: time_arr_ms.iter().map(|ms| sync_epoch_instant.add(js_milliseconds_to_duration(ms-sync_epoch_chrono_ms))).collect() // convert from chrono time to Instant using epoch
-		}).unwrap();
-		let eval_arr = patteval_return_rx.recv().unwrap();
-		let eval_results_arr = eval_results_arr.as_mut_slice();
-		for (i,eval) in eval_arr.into_iter().enumerate() {
-			eval_results_arr[i] = eval.into();
+		}).is_ok() {
+			let eval_arr = patteval_return_rx.recv().unwrap();
+			let eval_results_arr = eval_results_arr.as_mut_slice();
+			for (i,eval) in eval_arr.into_iter().enumerate() {
+				eval_results_arr[i] = eval.into();
+			}
+		} else {
+			// patt eval thread exited (or panicked),
+			// end_streaming_rx will be called, triggering drop() + ULHStreamingController::~ULHStreamingController()
+			//# note:  its seems that ULHStreamingController::~ULHStreamingController() was already called, and this callback is still being called due to multithreading internal to Ultraleap
 		}
 	};
 	if let Some(_cb) = STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback)) {

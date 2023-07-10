@@ -23,8 +23,7 @@ pub fn start_mock_emitter(
 	assert!(device_tick_dur.as_secs_f64() > 0.0, "device_tick_dur must be > 0");
 	loop {
 		if end_streaming_rx.try_recv().is_ok() {
-			println!("mock streaming exiting...");
-			return;
+			break;
 		}
 		while last_tick + ecallback_tick_dur > Instant::now() {} //busy wait
 		let curr_time = Instant::now();
@@ -41,8 +40,13 @@ pub fn start_mock_emitter(
 			future_device_tick_instant += device_tick_dur;
 		}
 
-		patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).unwrap();
-		patteval_return_rx.recv().unwrap();
+		if patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).is_ok() {
+			patteval_return_rx.recv().unwrap();
+		} else {
+			// patt eval thread exited (or panicked),
+			// end_streaming_rx will be called by main thread, could exit here anyway
+			break; // not sure if I want to do this or just loop until end_streaming_rx
+		}
 
 		// if let Err(e) = patteval_return_rx.recv() {
 		//     // pattern eval thread exited, so we should exit
@@ -57,4 +61,6 @@ pub fn start_mock_emitter(
 			eprintln!("missed deadline by {:?}", deadline_missed_by);
 		}
 	}
+
+	println!("mock streaming exiting...");
 }
