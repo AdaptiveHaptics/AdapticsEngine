@@ -286,8 +286,9 @@ pub extern "C" fn deinit_adaptics_engine(handle_id: HandleID, mut err_msg: FFISl
             let err_msg_rv_slice = err_msg.as_slice_mut();
             let res_err_str_bytes = res_err.to_string().into_bytes();
             // copy as many bytes of res_err_str_bytes as possible into err_msg_rv_slice
-            let bytes_to_copy = std::cmp::min(err_msg_rv_slice.len(), res_err_str_bytes.len());
+            let bytes_to_copy = std::cmp::min(err_msg_rv_slice.len() - 1, res_err_str_bytes.len());
             err_msg_rv_slice[..bytes_to_copy].copy_from_slice(&res_err_str_bytes[..bytes_to_copy]);
+            err_msg_rv_slice[bytes_to_copy] = 0; // null terminate
             FFIError::ErrMsgProvided
         },
         Err(_) => FFIError::Panic,
