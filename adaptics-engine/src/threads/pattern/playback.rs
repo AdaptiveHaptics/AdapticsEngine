@@ -65,11 +65,18 @@ pub fn pattern_eval_loop(
 
 	let mut next_eval_params = NextEvalParams::default();
 
+	let mut send_stopping_updates = false;
+
 	fn send_playback_updates(last_playback_update: &mut Instant, playback_update_buffer: &mut Vec<BrushAtAnimLocalTime>, playback_updates_tx: &Option<crossbeam_channel::Sender<PEWSServerMessage>>) {
 		*last_playback_update = Instant::now();
 		if playback_update_buffer.is_empty() {
 			println!("[warn] skipping network update (no evals)");
 			return;
+		}
+		{
+			let first_eval = playback_update_buffer.first().unwrap();
+			let last_eval = playback_update_buffer.last().unwrap();
+			println!("sending network update ({} evals) ({}ms {} - {}ms {})", playback_update_buffer.len(), first_eval.pattern_time, first_eval.stop, last_eval.pattern_time, last_eval.stop);
 		}
 		// else { println!("sending network update ({} evals)", playback_update_buffer.len()); }
 		if let Some(playback_updates_tx) = &playback_updates_tx {
@@ -93,7 +100,7 @@ pub fn pattern_eval_loop(
 				let call = oper.recv(&patteval_call_rx)?;
 				match call {
 					PatternEvalCall::EvalBatch{ time_arr_instants } => {
-						let eval_arr: Vec<_> = time_arr_instants.iter().map(|time| {
+						let eval_arr_raw: Vec<_> = time_arr_instants.iter().map(|time| {
 							if let Some(playstart) = pattern_playstart {
 								parameters.time = time.sub(playstart).as_nanos() as f64 / 1e6;
 							} //else reuse the last parameters.time
@@ -101,43 +108,41 @@ pub fn pattern_eval_loop(
 							next_eval_params = eval.next_eval_params.clone();
 							if eval.stop && pattern_playstart.is_some() {
 								pattern_playstart = None;
-								send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
+								send_stopping_updates = true; // send current playback_update_buffer, and then instantly send just the current eval batch
+								println!("send_stopping_updates = true @ {}", parameters.time);
 							}
 							eval
 						}).collect();
 
-
-						#[allow(clippy::collapsible_if)]
-						if send_untracked_playback_updates {
-							if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr); }
-						}
-
-						// apply tracking
-						let eval_arr_tracking_adjusted = if enable_tracking {
-							if let Some(hand_pos) = &tracking_data.hand {
-								// shift evals by hand_pos
-								let mut eval_arr = eval_arr;
-								for e in &mut eval_arr {
+						let eval_arr_tracking_adjusted = {
+							let mut eval_arr_tracking_adjusted = eval_arr_raw.clone();
+							if let (true, Some(hand_pos)) = (enable_tracking, &tracking_data.hand) {
+								for e in &mut eval_arr_tracking_adjusted {
 									e.ul_control_point.coords.x += hand_pos.x;
 									e.ul_control_point.coords.y += hand_pos.y;
 									e.ul_control_point.coords.z = hand_pos.z;
 								}
-								eval_arr
-							} else { eval_arr }
-						} else { eval_arr };
-
-						#[allow(clippy::collapsible_if)]
-						if !send_untracked_playback_updates {
-							if pattern_playstart.is_some() { playback_update_buffer.extend_from_slice(&eval_arr_tracking_adjusted); }
-						}
+							}
+							eval_arr_tracking_adjusted
+						};
 
 						// send tracked evals to haptic device
-						patteval_return_tx.send(eval_arr_tracking_adjusted).unwrap();
+						patteval_return_tx.send(eval_arr_tracking_adjusted.clone()).unwrap();
 
 
-						if pattern_playstart.is_some() && (Instant::now() - last_playback_update).as_secs_f64() > seconds_per_playback_update {
-							send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
+						let send_updates = pattern_playstart.is_some() || send_stopping_updates;
+						if send_updates {
+							let playback_update_evals = if send_untracked_playback_updates { &eval_arr_raw } else { &eval_arr_tracking_adjusted };
+							playback_update_buffer.extend_from_slice(playback_update_evals);
+
+							if (Instant::now() - last_playback_update).as_secs_f64() > seconds_per_playback_update {
+								if send_stopping_updates && playback_update_buffer.get(0).is_some_and(|e| e.stop) {
+									send_stopping_updates = false;
+								}
+								send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
+							}
 						}
+
 					},
 				}
 			},
