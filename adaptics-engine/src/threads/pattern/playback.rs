@@ -73,12 +73,11 @@ pub fn pattern_eval_loop(
 			println!("[warn] skipping network update (no evals)");
 			return;
 		}
-		{
-			let first_eval = playback_update_buffer.first().unwrap();
-			let last_eval = playback_update_buffer.last().unwrap();
-			println!("sending network update ({} evals) ({}ms {} - {}ms {})", playback_update_buffer.len(), first_eval.pattern_time, first_eval.stop, last_eval.pattern_time, last_eval.stop);
-		}
-		// else { println!("sending network update ({} evals)", playback_update_buffer.len()); }
+		// {
+		// 	let first_eval = playback_update_buffer.first().unwrap();
+		// 	let last_eval = playback_update_buffer.last().unwrap();
+		// 	println!("sending network update ({} evals) ({}ms {} - {}ms {})", playback_update_buffer.len(), first_eval.pattern_time, first_eval.stop, last_eval.pattern_time, last_eval.stop);
+		// }
 		if let Some(playback_updates_tx) = &playback_updates_tx {
 			match playback_updates_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
 				Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
@@ -109,7 +108,7 @@ pub fn pattern_eval_loop(
 							if eval.stop && pattern_playstart.is_some() {
 								pattern_playstart = None;
 								send_stopping_updates = true; // send current playback_update_buffer, and then instantly send just the current eval batch
-								println!("send_stopping_updates = true @ {}", parameters.time);
+								// println!("send_stopping_updates = true @ {}", parameters.time);
 							}
 							eval
 						}).collect();
