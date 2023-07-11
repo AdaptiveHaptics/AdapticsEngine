@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use pattern_evaluator::BrushAtAnimLocalTime;
 
-use crate::threads::pattern::pattern_eval::PatternEvalCall;
+use crate::threads::pattern::playback::PatternEvalCall;
 
 pub fn start_mock_emitter(
 	device_update_rate: u64,

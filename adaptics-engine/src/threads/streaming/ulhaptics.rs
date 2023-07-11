@@ -6,7 +6,7 @@ use ffi::*;
 use ffi::cxx_ffi::*;
 use pattern_evaluator::{PatternEvaluator, BrushAtAnimLocalTime};
 
-use crate::{threads::{common::{MilSec, js_milliseconds_to_duration}, pattern::pattern_eval::PatternEvalCall}, TLError};
+use crate::{threads::{common::{MilSec, js_milliseconds_to_duration}, pattern::playback::PatternEvalCall}, TLError};
 
 impl From<BrushAtAnimLocalTime> for EvalResult {
     fn from(be: BrushAtAnimLocalTime) -> EvalResult {

@@ -9,8 +9,8 @@ use pattern_evaluator::{BrushAtAnimLocalTime, PatternEvaluator};
 
 
 pub mod threads;
-use threads::pattern::pattern_eval;
-pub use pattern_eval::PatternEvalUpdate;
+use threads::pattern::playback;
+pub use playback::PatternEvalUpdate;
 use threads::streaming;
 use threads::net::websocket::{self, PEWSServerMessage};
 use threads::tracking;
@@ -46,7 +46,7 @@ impl std::error::Error for TLError {
 pub struct AdapticsEngineHandle {
     end_streaming_tx: crossbeam_channel::Sender<()>,
     pattern_eval_handle: thread::JoinHandle<()>,
-    patteval_update_tx: crossbeam_channel::Sender<pattern_eval::PatternEvalUpdate>,
+    patteval_update_tx: crossbeam_channel::Sender<playback::PatternEvalUpdate>,
     ulh_streaming_handle: thread::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>,
     playback_updates_rx: Option<crossbeam_channel::Receiver<websocket::PEWSServerMessage>>,
 }
@@ -70,7 +70,7 @@ fn create_threads(
         .spawn(move || {
             println!("pattern-eval thread starting...");
 
-            let res = pattern_eval::pattern_eval_loop(
+            let res = playback::pattern_eval_loop(
                 SECONDS_PER_PLAYBACK_UPDATE,
                 SEND_UNTRACKED_PLAYBACK_UPDATES,
                 patteval_call_rx,
