@@ -1,7 +1,7 @@
 [package]
 name = "adaptics-engine"
 description = "Playback engine for Adaptics patterns"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 # links = "UltraleapHaptics" # note that both UltraleapHaptics and LeapC are linked with cxx
 # publish = false # due to linking to both UltraleapHaptics and LeapC with cxx (?)
