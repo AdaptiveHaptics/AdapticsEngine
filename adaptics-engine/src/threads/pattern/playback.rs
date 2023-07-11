@@ -65,6 +65,22 @@ pub fn pattern_eval_loop(
 
 	let mut next_eval_params = NextEvalParams::default();
 
+	fn send_playback_updates(last_playback_update: &mut Instant, playback_update_buffer: &mut Vec<BrushAtAnimLocalTime>, playback_updates_tx: &Option<crossbeam_channel::Sender<PEWSServerMessage>>) {
+		*last_playback_update = Instant::now();
+		if playback_update_buffer.is_empty() {
+			println!("[warn] skipping network update (no evals)");
+			return;
+		}
+		// else { println!("sending network update ({} evals)", playback_update_buffer.len()); }
+		if let Some(playback_updates_tx) = &playback_updates_tx {
+			match playback_updates_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
+				Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
+				res => res.unwrap()
+			}
+		}
+		playback_update_buffer.clear();
+	}
+
 	loop {
 		// not using select macro because of https://github.com/rust-lang/rust-analyzer/issues/11847
 		let mut sel = crossbeam_channel::Select::new();
@@ -83,6 +99,10 @@ pub fn pattern_eval_loop(
 							} //else reuse the last parameters.time
 							let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters, &next_eval_params);
 							next_eval_params = eval.next_eval_params.clone();
+							if eval.stop && pattern_playstart.is_some() {
+								pattern_playstart = None;
+								send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
+							}
 							eval
 						}).collect();
 
@@ -116,19 +136,7 @@ pub fn pattern_eval_loop(
 
 
 						if pattern_playstart.is_some() && (Instant::now() - last_playback_update).as_secs_f64() > seconds_per_playback_update {
-							last_playback_update = Instant::now();
-							if playback_update_buffer.is_empty() {
-								println!("[warn] skipping network update (no evals)");
-								continue;
-							}
-							// else { println!("sending network update ({} evals)", playback_update_buffer.len()); }
-							if let Some(playback_updates_tx) = &playback_updates_tx {
-								match playback_updates_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
-									Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
-									res => res.unwrap()
-								}
-							}
-							playback_update_buffer.clear();
+							send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
 						}
 					},
 				}
