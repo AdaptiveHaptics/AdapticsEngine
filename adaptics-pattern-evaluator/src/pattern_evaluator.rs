@@ -367,7 +367,7 @@ impl PatternEvaluator {
     pub fn eval_brush_at_anim_local_time(&self, p: &PatternEvaluatorParameters, nep: &NextEvalParams) -> BrushAtAnimLocalTime {
         let path_eval = self.eval_path_at_anim_local_time(p, nep);
 
-        let brush_coords_offset = Self::eval_hapev2_primitive_into_mah_units(path_eval.pattern_time, &path_eval.brush);
+        let brush_coords_offset = Self::eval_hapev2_primitive_into_mah_units(p.time, &path_eval.brush);
         BrushAtAnimLocalTime {
             ul_control_point: UltraleapControlPoint {
                 coords: MAHCoordsConst {
