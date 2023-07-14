@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "adaptics-engine"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "adaptics-pattern-evaluator",
  "base64",
