@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 15014056332720899612ul)
+            if (api_version != 8771849945448536054ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (15014056332720899612). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (8771849945448536054). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -266,6 +266,7 @@ namespace com.github.AdaptiveHaptics
         public UnityEvalCoords coords;
         public double intensity;
         public double pattern_time;
+        public bool stop;
     }
 
     public enum FFIError

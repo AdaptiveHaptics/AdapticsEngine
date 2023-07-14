@@ -437,6 +437,7 @@ pub struct UnityEvalResult {
     pub coords: UnityEvalCoords,
     pub intensity: f64,
     pub pattern_time: f64,
+    pub stop: bool,
 }
 impl From<BrushAtAnimLocalTime> for UnityEvalResult {
     fn from(be: BrushAtAnimLocalTime) -> UnityEvalResult {
@@ -449,6 +450,7 @@ impl From<BrushAtAnimLocalTime> for UnityEvalResult {
             },
             intensity: be.ul_control_point.intensity,
             pattern_time: be.pattern_time,
+            stop: be.stop,
         }
     }
 }
