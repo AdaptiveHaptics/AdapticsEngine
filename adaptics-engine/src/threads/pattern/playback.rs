@@ -107,7 +107,7 @@ pub fn pattern_eval_loop(
 							next_eval_params = eval.next_eval_params.clone();
 							if eval.stop && pattern_playstart.is_some() {
 								pattern_playstart = None;
-								send_stopping_updates = true; // send current playback_update_buffer, and then instantly send just the current eval batch
+								send_stopping_updates = true; // continue sending until playback_update_buffer[0].stop == true is sent
 								// println!("send_stopping_updates = true @ {}", parameters.time);
 							}
 							eval
@@ -136,7 +136,7 @@ pub fn pattern_eval_loop(
 
 							if (Instant::now() - last_playback_update).as_secs_f64() > seconds_per_playback_update {
 								if send_stopping_updates && playback_update_buffer.get(0).is_some_and(|e| e.stop) {
-									send_stopping_updates = false;
+									send_stopping_updates = false; // finished sending stop updates
 								}
 								send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
 							}
