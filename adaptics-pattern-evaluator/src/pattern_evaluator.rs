@@ -1,9 +1,11 @@
 mod shared_types;
+mod atformula_parser;
 use std::{mem::Discriminant, collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
 pub use shared_types::*;
+pub use atformula_parser::parse_formula;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -430,23 +432,18 @@ impl PatternEvaluator {
         serde_json::to_string::<Vec<BrushAtAnimLocalTime>>(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap(), &serde_json::from_str::<NextEvalParams>(nep).unwrap())).unwrap()
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = default_next_eval_params))]
     pub fn default_next_eval_params() -> String {
         serde_json::to_string::<NextEvalParams>(&NextEvalParams::default()).unwrap()
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = default_pattern_transformation))]
     pub fn default_pattern_transformation() -> String {
         serde_json::to_string::<PatternTransformation>(&PatternTransformation::default()).unwrap()
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = default_geo_transform_matrix))]
     pub fn default_geo_transform_matrix() -> String {
         serde_json::to_string::<GeometricTransformMatrix>(&GeometricTransformMatrix::default()).unwrap()
     }
 
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_apply))]
     pub fn geo_transform_simple_apply(gts: &str, coords: &str, user_parameters: &str, user_parameter_definitions: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
         let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
@@ -455,7 +452,7 @@ impl PatternEvaluator {
         let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
         serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords, &dyn_up_info)).unwrap()
     }
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = geo_transform_simple_inverse))]
+
     pub fn geo_transform_simple_inverse(gts: &str, coords: &str, user_parameters: &str, user_parameter_definitions: &str) -> String {
         let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
         let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
@@ -463,6 +460,13 @@ impl PatternEvaluator {
         let user_parameter_definitions = serde_json::from_str::<UserParameterDefinitions>(user_parameter_definitions).unwrap();
         let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
         serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords, &dyn_up_info)).unwrap()
+    }
+
+    pub fn parse_formula(formula: &str) -> Result<String, JsError> {
+        Ok(serde_json::to_string::<ATFormula>(&parse_formula(formula)?)?)
+    }
+    pub fn formula_to_string(formula: &str) -> Result<String, JsError> {
+        Ok(serde_json::from_str::<ATFormula>(formula)?.to_formula_string())
     }
 }
 
@@ -707,9 +711,22 @@ impl UserParametersConstrained {
 type DynUserParamInfo = UserParametersConstrained;
 impl MAHDynamicF64 {
     fn to_f64(&self, dyn_up_info: &DynUserParamInfo) -> f64 {
-        *match self {
-            Self::Dynamic(param) => dyn_up_info.0.get(param).unwrap_or(&0.0),
-            Self::F64(f) => f,
+        match self {
+            MAHDynamicF64::Dynamic(param) => *dyn_up_info.0.get(param).unwrap_or(&0.0),
+            MAHDynamicF64::F64(f) => *f,
+            MAHDynamicF64::Formula(formula) => formula.eval(dyn_up_info),
+        }
+    }
+}
+impl ATFormula {
+    fn eval(&self, dyn_up_info: &DynUserParamInfo) -> f64 {
+        match self {
+            ATFormula::Constant(c) => *c,
+            ATFormula::Parameter(p) => *dyn_up_info.0.get(p).unwrap_or(&0.0),
+            ATFormula::Add(left, right) => left.eval(dyn_up_info) + right.eval(dyn_up_info),
+            ATFormula::Subtract(left, right) => left.eval(dyn_up_info) - right.eval(dyn_up_info),
+            ATFormula::Multiply(left, right) => left.eval(dyn_up_info) * right.eval(dyn_up_info),
+            ATFormula::Divide(left, right) => left.eval(dyn_up_info) / right.eval(dyn_up_info),
         }
     }
 }
@@ -848,6 +865,33 @@ mod tests {
             }
         });
     }
+
+
+    #[test]
+    fn test_atformula_eval() {
+        #[allow(non_snake_case)]
+        let pA = 2.0; let param = 11.0; let param2 = 12.0; let param3 = 13.0; let param4 = 14.0;
+        let dyn_up_info = UserParametersConstrained(HashMap::from_iter(vec![
+            ("pA".to_string(), 2.0),
+            ("param".to_string(), 11.0),
+            ("param2".to_string(), 12.0),
+            ("param3".to_string(), 13.0),
+            ("param4".to_string(), 14.0),
+        ]));
+        let formula = parse_formula("1.0 + 2.0").unwrap();
+        assert_eq!(formula.eval(&dyn_up_info), 1.0 + 2.0);
+        let formula = parse_formula("1.0 + pA").unwrap();
+        assert_eq!(formula.eval(&dyn_up_info), 1.0 + pA);
+        let formula = parse_formula("1 * param + 2 / param2 - 3 * param3 + 4 / param4").unwrap();
+        assert_eq!(formula.eval(&dyn_up_info), 1.0 * param + 2.0 / param2 - 3.0 * param3 + 4.0 / param4);
+        let formula = parse_formula("1 + (2 * param - (3 / (4 - 5 * (param2 + 6))))").unwrap();
+        assert_eq!(formula.eval(&dyn_up_info), 1.0 + (2.0 * param - (3.0 / (4.0 - 5.0 * (param2 + 6.0)))));
+    }
+
+
+
+
+
 
 
     use std::time::Duration;

@@ -10,11 +10,24 @@ use schemars::JsonSchema;
 // #[cfg(target_arch = "wasm32")]
 // use wasm_bindgen::prelude::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[non_exhaustive]
-pub enum DataFormatRevision {
-    #[serde(rename = "0.0.10-alpha.1")] CurrentRevision
+#[allow(deprecated)]
+mod stopdeprecatedwarning {
+    use super::*;
+
+    #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+    #[non_exhaustive]
+    pub enum DataFormatRevision {
+        #[serde(rename = "0.1.0-alpha.1")] CurrentRevision,
+
+        #[deprecated]
+        #[schemars(skip)]
+        #[serde(skip_serializing)]
+        #[serde(rename = "0.0.10-alpha.1")]
+        BackwardsCompatibleRevision,
+    }
 }
+pub use stopdeprecatedwarning::*;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum MidAirHapticsAnimationFileFormatDataFormatName {
@@ -48,6 +61,19 @@ pub struct MAHUserParameterDefinition {
     pub step: f64,
 }
 
+
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+#[serde(tag = "type", content = "value")]
+pub enum ATFormula {
+    Constant(f64),
+    Parameter(String),
+    Add(Box<ATFormula>, Box<ATFormula>),
+    Subtract(Box<ATFormula>, Box<ATFormula>),
+    Multiply(Box<ATFormula>, Box<ATFormula>),
+    Divide(Box<ATFormula>, Box<ATFormula>),
+}
+
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(tag = "type", content = "value")]
 #[serde(rename_all = "snake_case")]
@@ -56,6 +82,8 @@ pub enum MAHDynamicF64 {
     Dynamic(String),
     /// Normal constant value
     F64(f64),
+    /// Formula
+    Formula(ATFormula)
 }
 impl From<f64> for MAHDynamicF64 {
     fn from(f: f64) -> Self {
