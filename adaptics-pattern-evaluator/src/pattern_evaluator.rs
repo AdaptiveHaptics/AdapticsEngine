@@ -418,6 +418,11 @@ impl PatternEvaluator {
 #[cfg(target_arch = "wasm32")]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
+    pub fn try_parse_into_latest_version(mah_animation_json: &str) -> Result<String, JsError> {
+        let mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
+        Ok(serde_json::to_string(&mah_animation)?)
+    }
+
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new_json(mah_animation_json: &str) -> Result<PatternEvaluator, JsError> {
         Ok(Self::new_from_json_string(mah_animation_json)?)
@@ -722,7 +727,7 @@ type DynUserParamInfo = UserParametersConstrained;
 impl MAHDynamicF64 {
     fn to_f64(&self, dyn_up_info: &DynUserParamInfo) -> f64 {
         match self {
-            MAHDynamicF64::Dynamic(param) => *dyn_up_info.0.get(param).unwrap_or(&0.0),
+            MAHDynamicF64::Param(param) => *dyn_up_info.0.get(param).unwrap_or(&0.0),
             MAHDynamicF64::F64(f) => *f,
             MAHDynamicF64::Formula(formula) => formula.eval(dyn_up_info),
         }

@@ -17,7 +17,7 @@ mod stopdeprecatedwarning {
     #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
     #[non_exhaustive]
     pub enum DataFormatRevision {
-        #[serde(rename = "0.1.0-alpha.1")] CurrentRevision,
+        #[serde(rename = "0.1.0-alpha.2")] CurrentRevision,
 
         #[deprecated]
         #[schemars(skip)]
@@ -65,6 +65,7 @@ pub struct MAHUserParameterDefinition {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
 #[serde(tag = "type", content = "value")]
+#[serde(rename_all = "snake_case")]
 pub enum ATFormula {
     Constant(f64),
     Parameter(String),
@@ -79,7 +80,8 @@ pub enum ATFormula {
 #[serde(rename_all = "snake_case")]
 pub enum MAHDynamicF64 {
     /// Specify a parameter instead of a constant value
-    Dynamic(String),
+    #[serde(alias = "dynamic")]
+    Param(String),
     /// Normal constant value
     F64(f64),
     /// Formula
