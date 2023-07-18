@@ -444,22 +444,16 @@ impl PatternEvaluator {
         serde_json::to_string::<GeometricTransformMatrix>(&GeometricTransformMatrix::default()).unwrap()
     }
 
-    pub fn geo_transform_simple_apply(gts: &str, coords: &str, user_parameters: &str, user_parameter_definitions: &str) -> String {
-        let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
-        let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
-        let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
-        let user_parameter_definitions = serde_json::from_str::<UserParameterDefinitions>(user_parameter_definitions).unwrap();
-        let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
-        serde_json::to_string::<MAHCoordsConst>(&gts.apply(&coords, &dyn_up_info)).unwrap()
+    pub fn geo_transform_simple_apply(gtsp: &str) -> String {
+        let gtsp = serde_json::from_str::<GeoTransformSimpleParametersWASM>(gtsp).unwrap();
+        let dyn_up_info = UserParametersConstrained::from(&gtsp.user_parameters, &gtsp.user_parameter_definitions);
+        serde_json::to_string::<MAHCoordsConst>(&gtsp.gts.apply(&gtsp.coords, &dyn_up_info)).unwrap()
     }
 
-    pub fn geo_transform_simple_inverse(gts: &str, coords: &str, user_parameters: &str, user_parameter_definitions: &str) -> String {
-        let gts = serde_json::from_str::<GeometricTransformsSimple>(gts).unwrap();
-        let coords = serde_json::from_str::<MAHCoordsConst>(coords).unwrap();
-        let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
-        let user_parameter_definitions = serde_json::from_str::<UserParameterDefinitions>(user_parameter_definitions).unwrap();
-        let dyn_up_info = UserParametersConstrained::from(&user_parameters, &user_parameter_definitions);
-        serde_json::to_string::<MAHCoordsConst>(&gts.inverse(&coords, &dyn_up_info)).unwrap()
+    pub fn geo_transform_simple_inverse(gtsp: &str) -> String {
+        let gtsp = serde_json::from_str::<GeoTransformSimpleParametersWASM>(gtsp).unwrap();
+        let dyn_up_info = UserParametersConstrained::from(&gtsp.user_parameters, &gtsp.user_parameter_definitions);
+        serde_json::to_string::<MAHCoordsConst>(&gtsp.gts.inverse(&gtsp.coords, &dyn_up_info)).unwrap()
     }
 
     pub fn parse_formula(formula: &str) -> Result<String, JsError> {
@@ -468,6 +462,15 @@ impl PatternEvaluator {
     pub fn formula_to_string(formula: &str) -> Result<String, JsError> {
         Ok(serde_json::from_str::<ATFormula>(formula)?.to_formula_string())
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeoTransformSimpleParametersWASM {
+    pub gts: GeometricTransformsSimple,
+    pub coords: MAHCoordsConst,
+    pub user_parameters: UserParameters,
+    pub user_parameter_definitions: UserParameterDefinitions,
 }
 
 pub type PatternEvalWasmPublicTypes = (MidAirHapticsAnimationFileFormat, PatternEvaluatorParameters, BrushAtAnimLocalTime, Vec<BrushAtAnimLocalTime>);
