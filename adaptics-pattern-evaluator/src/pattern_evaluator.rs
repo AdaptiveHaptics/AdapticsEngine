@@ -462,6 +462,13 @@ impl PatternEvaluator {
     pub fn formula_to_string(formula: &str) -> Result<String, JsError> {
         Ok(serde_json::from_str::<ATFormula>(formula)?.to_formula_string())
     }
+
+    pub fn dynf64_to_f64(dynf64: &str, user_parameters: &str, user_parameter_definitions: &str) -> f64 {
+        let dynf64 = serde_json::from_str::<MAHDynamicF64>(dynf64).unwrap();
+        let user_parameters = serde_json::from_str::<UserParameters>(user_parameters).unwrap();
+        let user_parameter_definitions = serde_json::from_str::<UserParameterDefinitions>(user_parameter_definitions).unwrap();
+        dynf64.to_f64(&UserParametersConstrained::from(&user_parameters, &user_parameter_definitions))
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
