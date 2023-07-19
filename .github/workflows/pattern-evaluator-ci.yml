@@ -35,11 +35,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          registry-url: https://registry.npmjs.org/
 
-      - name: Install npm dependencies
+      - name: Install npm dependencies (json-schema-to-typescript)
         run: |
           cd adaptics-pattern-evaluator
-          npm install
+          npm ci
 
       - name: Run the test+build script
         run: |
