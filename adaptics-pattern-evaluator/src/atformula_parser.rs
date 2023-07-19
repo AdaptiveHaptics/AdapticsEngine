@@ -178,7 +178,6 @@ impl ATFormula {
 			_ => self.to_formula_string(),
 		}
 	}
-
 }
 
 

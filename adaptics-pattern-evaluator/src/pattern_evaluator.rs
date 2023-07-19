@@ -419,7 +419,16 @@ impl PatternEvaluator {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
     pub fn try_parse_into_latest_version(mah_animation_json: &str) -> Result<String, JsError> {
-        let mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
+        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
+        #[allow(deprecated)]
+        match mah_animation.revision {
+            DataFormatRevision::CurrentRevision => {}
+            DataFormatRevision::BackwardsCompatibleRevision => {
+                // once parsed, we can just set the revision to the current one because:
+                // BackwardsCompatibleRevision conversions are done with serde aliases
+                mah_animation.revision = DataFormatRevision::CurrentRevision;
+            }
+        }
         Ok(serde_json::to_string(&mah_animation)?)
     }
 
