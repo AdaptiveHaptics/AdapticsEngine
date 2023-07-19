@@ -1,0 +1,58 @@
+name: Build and Test adaptics-pattern-evaluator
+
+on:
+  push:
+    branches: [ main, master ]
+    # paths:
+    #   - 'adaptics-pattern-evaluator/**'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+          profile: minimal
+          override: true
+          target: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install npm dependencies
+        run: |
+          cd adaptics-pattern-evaluator
+          npm install
+
+      - name: Run the test+build script
+        run: |
+          cd adaptics-pattern-evaluator
+          bash build-pkg.sh
+
+      - name: Check for version changes
+        id: version_changes
+        run: |
+          VERSION_CHANGES=$(git diff ${{ github.event.before }}..${{ github.sha }} -- adaptics-pattern-evaluator/Cargo.toml | grep "^+version" | wc -l)
+          echo "version_changes=${VERSION_CHANGES}" >> $GITHUB_OUTPUT
+
+      - name: Publish new version
+        if: steps.version_changes.outputs.version_changes == '1'
+        run: |
+          cd adaptics-pattern-evaluator
+          npm publish pkg/adaptics-pattern-evaluator-*.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
