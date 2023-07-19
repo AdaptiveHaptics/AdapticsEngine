@@ -16,6 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Fetch before commit for version check
+        run: git fetch origin ${{ github.event.before }}:${{ github.event.before }}
+
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -46,6 +49,7 @@ jobs:
       - name: Check for version changes
         id: version_changes
         run: |
+          set -e
           VERSION_CHANGES=$(git diff ${{ github.event.before }}..${{ github.sha }} -- adaptics-pattern-evaluator/Cargo.toml | grep "^+version" | wc -l)
           echo "version_changes=${VERSION_CHANGES}" >> $GITHUB_OUTPUT
 
