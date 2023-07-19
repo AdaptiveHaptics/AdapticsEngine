@@ -20,13 +20,11 @@ jobs:
         run: git fetch origin ${{ github.event.before }}:${{ github.event.before }}
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          components: clippy
-          profile: minimal
-          override: true
-          target: wasm32-unknown-unknown
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
