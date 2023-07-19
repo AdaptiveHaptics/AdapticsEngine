@@ -28,8 +28,9 @@ wasm-pack build --target web --weak-refs --reference-types --out-dir "$pkg_dir" 
 rm "$pkg_dir/.gitignore"
 node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('$pkg_dir/package.json')); delete pkg.files; fs.writeFileSync('$pkg_dir/package.json', JSON.stringify(pkg, null, 2))"
 
-wasm-pack pack "$pkg_dir" #--scope adaptics --no-typescript
-
+# add ts-nocheck and eslint-disable to top of generated js file
 sed -i '1s/^/\/\/\@ts-nocheck\n\/\* eslint-disable \*\/\n/' "$pkg_dir/pattern_evaluator.js"
+
+wasm-pack pack "$pkg_dir" #--scope adaptics --no-typescript
 
 echo "Successfully built package in $pkg_dir"
