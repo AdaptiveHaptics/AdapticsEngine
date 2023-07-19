@@ -57,6 +57,6 @@ jobs:
         if: steps.version_changes.outputs.version_changes == '1'
         run: |
           cd adaptics-pattern-evaluator
-          npm publish pkg/adaptics-pattern-evaluator-*.tgz --access public
+          npm publish ./pkg/adaptics-pattern-evaluator-*.tgz --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
