@@ -111,11 +111,11 @@ ULHStreamingController::ULHStreamingController(float callback_rate, rust_ecallba
 }
 
 void ULHStreamingController::pause_emitter() {
-    printf("pause_emitter\n");
+    // printf("pause_emitter\n");
 	unwrap(emitter.pause());
 }
 void ULHStreamingController::resume_emitter() {
-    printf("resume_emitter\n");
+    // printf("resume_emitter\n");
 	unwrap(emitter.resume());
 }
 size_t ULHStreamingController::getMissedCallbackIterations() const {

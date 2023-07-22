@@ -63,7 +63,7 @@ pub fn start_streaming_emitter(
 	match new_ulh_streaming_controller(callback_rate, static_streaming_emission_callback) {
 		Ok(mut ulh_streaming_controller) => {
 			ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
-			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
+			// println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap()); # 0
 			end_streaming_rx.recv().unwrap();
 			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
 			drop(ulh_streaming_controller);
