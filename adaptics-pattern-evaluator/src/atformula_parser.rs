@@ -24,13 +24,17 @@ pub enum ATFormulaToken {
 	Divide,
 	LeftParenthesis,
 	RightParenthesis,
+	Negate,
 }
 
 fn tokenize(formula_str: &str) -> Result<Vec<ATFormulaToken>, ATFormulaParsingError> {
-	fn char_to_token(c: char) -> Option<ATFormulaToken> {
+	fn char_to_token(c: char, current_pending_or_previous_token: Option<&ATFormulaToken>) -> Option<ATFormulaToken> {
 		match c {
 			'+' => Some(ATFormulaToken::Add),
-			'-' => Some(ATFormulaToken::Subtract),
+			'-' => match current_pending_or_previous_token {
+				Some(ATFormulaToken::Number(_)) | Some(ATFormulaToken::Parameter(_)) | Some(ATFormulaToken::RightParenthesis) => Some(ATFormulaToken::Subtract),
+				_ => Some(ATFormulaToken::Negate),
+			},
 			'*' => Some(ATFormulaToken::Multiply),
 			'/' => Some(ATFormulaToken::Divide),
 			'(' => Some(ATFormulaToken::LeftParenthesis),
@@ -60,10 +64,11 @@ fn tokenize(formula_str: &str) -> Result<Vec<ATFormulaToken>, ATFormulaParsingEr
 				current_token.push(c);
 			}
 		} else { // normal parsing
+			let current_pending_token = if !current_token.is_empty() { Some(string_to_token(&current_token)) } else { None };
 			if c == '`' { in_parameter_quotes = true }
-			else if let Some(ct) = char_to_token(c) {
-				if !current_token.is_empty() { //if there is anything in current token, try to parse and push it
-					tokens.push(string_to_token(&current_token));
+			else if let Some(ct) = char_to_token(c, current_pending_token.as_ref().or(tokens.last())) {
+				if let Some(cpt) = current_pending_token { //if there is anything in current token, push the parsed version and clear the buffer
+					tokens.push(cpt);
 					current_token.clear();
 				}
 
@@ -120,7 +125,7 @@ fn parse_expr_rhs(lhs: ATFormula, iter: &mut TokenStream) -> Result<ATFormula, A
 }
 
 fn parse_term(iter: &mut TokenStream) -> Result<ATFormula, ATFormulaParsingError> {
-    let lhs = parse_factor(iter)?;
+    let lhs = parse_negate(iter)?;
     parse_term_rhs(lhs, iter)
 }
 
@@ -128,12 +133,12 @@ fn parse_term_rhs(lhs: ATFormula, iter: &mut TokenStream) -> Result<ATFormula, A
     match iter.peek() {
         Some(&&ATFormulaToken::Multiply) => {
             iter.next();
-            let rhs = parse_factor(iter)?;
+            let rhs = parse_negate(iter)?;
             parse_term_rhs(ATFormula::Multiply(Box::new(lhs), Box::new(rhs)), iter)
         }
         Some(&&ATFormulaToken::Divide) => {
             iter.next();
-            let rhs = parse_factor(iter)?;
+            let rhs = parse_negate(iter)?;
             parse_term_rhs(ATFormula::Divide(Box::new(lhs), Box::new(rhs)), iter)
         }
         _ => Ok(lhs),
@@ -155,6 +160,18 @@ fn parse_factor(iter: &mut TokenStream) -> Result<ATFormula, ATFormulaParsingErr
     }
 }
 
+fn parse_negate(iter: &mut TokenStream) -> Result<ATFormula, ATFormulaParsingError> {
+    match iter.peek() {
+        Some(&&ATFormulaToken::Negate) => {
+            iter.next();
+            let factor = parse_factor(iter)?;
+            Ok(ATFormula::Negate(Box::new(factor)))
+        }
+        _ => parse_factor(iter),
+    }
+}
+
+
 pub fn parse_formula(formula_str: &str) -> Result<ATFormula, ATFormulaParsingError> {
 	let tokens = tokenize(formula_str)?;
 	parse(&tokens)
@@ -170,6 +187,7 @@ impl ATFormula {
             ATFormula::Subtract(left, right) => format!("{} - {}", left.to_formula_string(), right.to_formula_string()),
             ATFormula::Multiply(left, right) => format!("{} * {}", left.wrap_if_needed(), right.wrap_if_needed()),
             ATFormula::Divide(left, right) => format!("{} / {}", left.wrap_if_needed(), right.wrap_if_needed()),
+			ATFormula::Negate(inner) => format!("-{}", inner.wrap_if_needed()),
         }
     }
 	fn wrap_if_needed(&self) -> String {
@@ -268,6 +286,25 @@ mod tests {
 		]);
 	}
 
+	#[test]
+	fn test_tokenize_negate() {
+		let formula_str = "-1 + -2 * `-param` / -`param2`";
+        let tokens = tokenize(formula_str).unwrap();
+
+        assert_eq!(tokens, vec![
+            ATFormulaToken::Negate,
+            ATFormulaToken::Number(1.0),
+            ATFormulaToken::Add,
+            ATFormulaToken::Negate,
+            ATFormulaToken::Number(2.0),
+            ATFormulaToken::Multiply,
+            ATFormulaToken::Parameter("-param".to_string()),
+            ATFormulaToken::Divide,
+            ATFormulaToken::Negate,
+            ATFormulaToken::Parameter("param2".to_string()),
+        ]);
+	}
+
 
 	#[test]
     fn test_parse_single_number() {
@@ -325,6 +362,27 @@ mod tests {
             )
         );
     }
+
+	#[test]
+	fn test_parse_negate() {
+		let tokens = vec![
+            ATFormulaToken::Negate,
+            ATFormulaToken::Number(1.0),
+            ATFormulaToken::Add,
+            ATFormulaToken::Negate,
+            ATFormulaToken::Number(2.0),
+        ];
+
+        let formula = parse(&tokens).unwrap();
+        assert_eq!(
+            formula,
+            ATFormula::Add(
+                Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(1.0)))),
+                Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(2.0)))),
+            )
+        );
+
+	}
 
 	#[test]
 	fn test_parse_formula_simple() {
@@ -418,6 +476,83 @@ mod tests {
             )),
         ));
 	}
+
+	#[test]
+    fn test_parse_formula_negate() {
+        let formula_str = "-1 + -2";
+        let formula = parse_formula(formula_str).unwrap();
+
+        assert_eq!(
+            formula,
+            ATFormula::Add(
+                Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(1.0)))),
+                Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(2.0)))),
+            )
+        );
+    }
+
+	#[test]
+    fn test_unary_in_parentheses() {
+        let formula_str = "-(1 + 2)";
+        let formula = parse_formula(formula_str).unwrap();
+        assert_eq!(
+            formula,
+            ATFormula::Negate(
+                Box::new(ATFormula::Add(
+                    Box::new(ATFormula::Constant(1.0)),
+                    Box::new(ATFormula::Constant(2.0)),
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_nested_unary() {
+        let result = parse_formula("- -1");
+		assert!(result.is_err());
+
+		let formula = parse_formula("-(-1)").unwrap();
+        assert_eq!(
+            formula,
+            ATFormula::Negate(Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(1.0))))),
+        );
+    }
+
+    #[test]
+    fn test_unary_with_parameter() {
+        let formula_str = "-parameter";
+        let formula = parse_formula(formula_str).unwrap();
+        assert_eq!(
+            formula,
+            ATFormula::Negate(Box::new(ATFormula::Parameter("parameter".to_string()))),
+        );
+    }
+
+    #[test]
+    fn test_unary_no_whitespace() {
+        let formula_str = "2*-2";
+        let formula = parse_formula(formula_str).unwrap();
+        assert_eq!(
+            formula,
+            ATFormula::Multiply(
+                Box::new(ATFormula::Constant(2.0)),
+                Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(2.0)))),
+            ),
+        );
+    }
+
+    #[test]
+    fn test_unary_beginning() {
+        let formula_str = "-2 + 3";
+        let formula = parse_formula(formula_str).unwrap();
+        assert_eq!(
+            formula,
+            ATFormula::Add(
+                Box::new(ATFormula::Negate(Box::new(ATFormula::Constant(2.0)))),
+                Box::new(ATFormula::Constant(3.0)),
+            )
+        );
+    }
 
 
 	#[test]

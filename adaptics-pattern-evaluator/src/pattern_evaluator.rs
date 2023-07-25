@@ -30,6 +30,19 @@ pub struct HapeV2Coords {
     z: f64,
 }
 
+pub fn try_parse_into_latest_version(mah_animation_json: &str) -> Result<String, serde_json::Error> {
+    let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
+        #[allow(deprecated)]
+        match mah_animation.revision {
+            DataFormatRevision::CurrentRevision => {}
+            DataFormatRevision::BackwardsCompatibleRevision => {
+                // once parsed, we can just set the revision to the current one because:
+                // BackwardsCompatibleRevision conversions are done with serde aliases
+                mah_animation.revision = DataFormatRevision::CurrentRevision;
+            }
+        }
+        serde_json::to_string(&mah_animation)
+}
 
 impl PatternEvaluator {
     pub fn new(mah_animation: MidAirHapticsAnimationFileFormat) -> Self {
@@ -419,17 +432,7 @@ impl PatternEvaluator {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl PatternEvaluator {
     pub fn try_parse_into_latest_version(mah_animation_json: &str) -> Result<String, JsError> {
-        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
-        #[allow(deprecated)]
-        match mah_animation.revision {
-            DataFormatRevision::CurrentRevision => {}
-            DataFormatRevision::BackwardsCompatibleRevision => {
-                // once parsed, we can just set the revision to the current one because:
-                // BackwardsCompatibleRevision conversions are done with serde aliases
-                mah_animation.revision = DataFormatRevision::CurrentRevision;
-            }
-        }
-        Ok(serde_json::to_string(&mah_animation)?)
+        Ok(try_parse_into_latest_version(mah_animation_json)?)
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
@@ -751,6 +754,7 @@ impl ATFormula {
             ATFormula::Subtract(left, right) => left.eval(dyn_up_info) - right.eval(dyn_up_info),
             ATFormula::Multiply(left, right) => left.eval(dyn_up_info) * right.eval(dyn_up_info),
             ATFormula::Divide(left, right) => left.eval(dyn_up_info) / right.eval(dyn_up_info),
+            ATFormula::Negate(inner) => -inner.eval(dyn_up_info),
         }
     }
 }
@@ -910,6 +914,8 @@ mod tests {
         assert_eq!(formula.eval(&dyn_up_info), 1.0 * param + 2.0 / param2 - 3.0 * param3 + 4.0 / param4);
         let formula = parse_formula("1 + (2 * param - (3 / (4 - 5 * (param2 + 6))))").unwrap();
         assert_eq!(formula.eval(&dyn_up_info), 1.0 + (2.0 * param - (3.0 / (4.0 - 5.0 * (param2 + 6.0)))));
+        let formula = parse_formula("-param + 2.0").unwrap();
+        assert_eq!(formula.eval(&dyn_up_info), -param + 2.0);
     }
 
 

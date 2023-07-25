@@ -14,15 +14,15 @@ use schemars::JsonSchema;
 mod stopdeprecatedwarning {
     use super::*;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+    #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
     #[non_exhaustive]
     pub enum DataFormatRevision {
-        #[serde(rename = "0.1.0-alpha.2")] CurrentRevision,
+        #[serde(rename = "0.1.0-alpha.3")] CurrentRevision,
 
         #[deprecated]
         #[schemars(skip)]
         #[serde(skip_serializing)]
-        #[serde(rename = "0.0.10-alpha.1")]
+        #[serde(rename = "0.0.10-alpha.1", alias = "0.1.0-alpha.2")]
         BackwardsCompatibleRevision,
     }
 }
@@ -73,6 +73,7 @@ pub enum ATFormula {
     Subtract(Box<ATFormula>, Box<ATFormula>),
     Multiply(Box<ATFormula>, Box<ATFormula>),
     Divide(Box<ATFormula>, Box<ATFormula>),
+    Negate(Box<ATFormula>),
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]

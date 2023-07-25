@@ -1,0 +1,561 @@
+{
+	"$DATA_FORMAT": "MidAirHapticsAnimationFileFormat",
+	"$REVISION": "0.1.0-alpha.2",
+	"name": "untitled",
+	"keyframes": [
+		{
+			"time": 0,
+			"type": "standard",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 10
+						},
+						"am_freq": {
+							"type": "formula",
+							"value": {
+								"type": "multiply",
+								"value": [
+									{
+										"type": "parameter",
+										"value": "taking_damage"
+									},
+									{
+										"type": "constant",
+										"value": 25
+									}
+								]
+							}
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"coords": {
+				"coords": {
+					"x": 0,
+					"y": 0,
+					"z": 0
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 200,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 15
+						},
+						"am_freq": {
+							"type": "formula",
+							"value": {
+								"type": "multiply",
+								"value": [
+									{
+										"type": "parameter",
+										"value": "taking_damage"
+									},
+									{
+										"type": "constant",
+										"value": 25
+									}
+								]
+							}
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 400,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 2
+						},
+						"am_freq": {
+							"type": "formula",
+							"value": {
+								"type": "multiply",
+								"value": [
+									{
+										"type": "parameter",
+										"value": "taking_damage"
+									},
+									{
+										"type": "constant",
+										"value": 25
+									}
+								]
+							}
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 600,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 30
+						},
+						"am_freq": {
+							"type": "formula",
+							"value": {
+								"type": "multiply",
+								"value": [
+									{
+										"type": "parameter",
+										"value": "taking_damage"
+									},
+									{
+										"type": "constant",
+										"value": 25
+									}
+								]
+							}
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 800,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 8
+						},
+						"am_freq": {
+							"type": "formula",
+							"value": {
+								"type": "multiply",
+								"value": [
+									{
+										"type": "parameter",
+										"value": "taking_damage"
+									},
+									{
+										"type": "constant",
+										"value": 25
+									}
+								]
+							}
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 1000,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 10
+						},
+						"am_freq": {
+							"type": "formula",
+							"value": {
+								"type": "multiply",
+								"value": [
+									{
+										"type": "parameter",
+										"value": "taking_damage"
+									},
+									{
+										"type": "constant",
+										"value": 25
+									}
+								]
+							}
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": [
+				{
+					"condition": {
+						"parameter": "health",
+						"value": 0,
+						"operator": {
+							"name": "gt",
+							"params": {}
+						}
+					},
+					"jump_to": 0
+				}
+			]
+		},
+		{
+			"time": 1500,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 100
+						},
+						"am_freq": {
+							"type": "f64",
+							"value": 50
+						}
+					}
+				},
+				"transition": {
+					"name": "step",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 2000,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 10
+						},
+						"am_freq": {
+							"type": "f64",
+							"value": 0
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "param",
+							"value": "deadpulse"
+						}
+					}
+				},
+				"transition": {
+					"name": "step",
+					"params": {}
+				}
+			},
+			"cjumps": []
+		},
+		{
+			"time": 2500,
+			"type": "pause",
+			"brush": {
+				"brush": {
+					"name": "circle",
+					"params": {
+						"radius": {
+							"type": "f64",
+							"value": 10
+						},
+						"am_freq": {
+							"type": "f64",
+							"value": 0
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"intensity": {
+				"intensity": {
+					"name": "constant",
+					"params": {
+						"value": {
+							"type": "f64",
+							"value": 1
+						}
+					}
+				},
+				"transition": {
+					"name": "linear",
+					"params": {}
+				}
+			},
+			"cjumps": [
+				{
+					"condition": {
+						"parameter": "health",
+						"value": 0,
+						"operator": {
+							"name": "lt_eq",
+							"params": {}
+						}
+					},
+					"jump_to": 2000
+				},
+				{
+					"condition": {
+						"parameter": "health",
+						"value": 0,
+						"operator": {
+							"name": "gt",
+							"params": {}
+						}
+					},
+					"jump_to": 0
+				}
+			]
+		}
+	],
+	"pattern_transform": {
+		"geometric_transforms": {
+			"translate": {
+				"x": {
+					"type": "f64",
+					"value": 0
+				},
+				"y": {
+					"type": "f64",
+					"value": 0
+				},
+				"z": {
+					"type": "f64",
+					"value": 200
+				}
+			},
+			"rotation": {
+				"type": "f64",
+				"value": 0
+			},
+			"scale": {
+				"x": {
+					"type": "f64",
+					"value": 1
+				},
+				"y": {
+					"type": "f64",
+					"value": 1
+				},
+				"z": {
+					"type": "f64",
+					"value": 1
+				}
+			}
+		},
+		"intensity_factor": {
+			"type": "f64",
+			"value": 1
+		},
+		"playback_speed": {
+			"type": "formula",
+			"value": {
+				"type": "add",
+				"value": [
+					{
+						"type": "subtract",
+						"value": [
+							{
+								"type": "constant",
+								"value": 1
+							},
+							{
+								"type": "parameter",
+								"value": "health"
+							}
+						]
+					},
+					{
+						"type": "constant",
+						"value": 1
+					}
+				]
+			}
+		}
+	},
+	"user_parameter_definitions": {
+		"taking_damage": {
+			"default": 0,
+			"min": 0,
+			"max": 1,
+			"step": 1
+		},
+		"deadpulse": {
+			"default": 0,
+			"min": 0,
+			"max": 1,
+			"step": 1
+		},
+		"health": {
+			"default": 1,
+			"min": 0,
+			"max": 1,
+			"step": 0.05
+		}
+	}
+}
