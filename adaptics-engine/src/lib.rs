@@ -149,18 +149,19 @@ pub fn run_threads_and_wait(
         playback_updates_rx,
     } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), tracking_data_rx);
 
-    let net_handle_opt = if let Some(websocket_bind_addr) = websocket_bind_addr {
+    let (net_handle_opt, tracking_data_ws_tx) = if let Some(websocket_bind_addr) = websocket_bind_addr {
+        let (tracking_data_ws_tx, tracking_data_ws_rx) = if enable_tracking { let (s, r) = crossbeam_channel::unbounded(); (Some(s), Some(r)) } else { (None, None) };
         let playback_updates_rx = playback_updates_rx.unwrap();
         let thread = thread::Builder::new()
             .name("net".to_string())
             .spawn(move || {
                 println!("net thread starting...");
-                websocket::start_ws_server(&websocket_bind_addr, patteval_update_tx, playback_updates_rx);
+                websocket::start_ws_server(&websocket_bind_addr, patteval_update_tx, playback_updates_rx, tracking_data_ws_rx);
                 println!("net thread thread exiting...");
             })
             .unwrap();
-        Some(thread)
-    } else { None };
+        (Some(thread), tracking_data_ws_tx)
+    } else { Default::default() };
 
     let (end_tracking_tx, end_tracking_rx) = crossbeam_channel::bounded(1);
     let lmc_tracking_handle = if let Some(tracking_data_tx) = tracking_data_tx {
@@ -168,11 +169,11 @@ pub fn run_threads_and_wait(
             .name("lmc-tracking".to_string())
             .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 println!("tracking thread starting...");
-                tracking::leapmotion::start_tracking_loop(tracking_data_tx, end_tracking_rx)
+                tracking::leapmotion::start_tracking_loop(tracking_data_tx, tracking_data_ws_tx, end_tracking_rx)
             })
             .unwrap();
         Some(thread)
-    } else { None };
+    } else { Default::default() };
 
 
     // wait for threads to exit
@@ -476,6 +477,7 @@ pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleI
                     *num_evals = evalresults_to_copy as u32;
                     FFIError::Ok
                 },
+                Ok(PEWSServerMessage::TrackingData { .. }) | // ignore tracking data
                 Err(crossbeam_channel::TryRecvError::Empty) => {
                     *num_evals = 0;
                     FFIError::Ok

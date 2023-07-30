@@ -1,6 +1,6 @@
 use leapc_dyn_sys::*;
 
-use crate::TLError;
+use crate::{TLError, threads::net::websocket::PEWSServerMessage};
 
 use super::TrackingFrame;
 
@@ -153,10 +153,13 @@ fn lmc_raw_to_tracking_frame(raw: &LMCRawTrackingCoords) -> TrackingFrame {
 
 pub fn start_tracking_loop(
 	tracking_data_tx: crossbeam_channel::Sender<TrackingFrame>,
+	tracking_data_ws_tx: Option<crossbeam_channel::Sender<PEWSServerMessage>>,
 	end_tracking_rx: crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
 	let tracking_callback = move |raw_coords: &LMCRawTrackingCoords| {
-		tracking_data_tx.send(lmc_raw_to_tracking_frame(raw_coords)).ok(); // ignore send errors, is_done should exit
+		let tracking_frame = lmc_raw_to_tracking_frame(raw_coords);
+		tracking_data_tx.send(tracking_frame.clone()).ok(); // ignore send errors, is_done should exit
+		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() { tracking_data_ws_tx.send(PEWSServerMessage::TrackingData { tracking_frame }).ok(); }
 	};
 	let is_done = || end_tracking_rx.try_recv().is_ok();
 

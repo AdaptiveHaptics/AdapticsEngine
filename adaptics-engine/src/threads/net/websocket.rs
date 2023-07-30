@@ -6,14 +6,15 @@ use serde::{Serialize, Deserialize};
 use sha1::{Sha1, Digest};
 use base64::{self, Engine as _};
 
-use crate::PatternEvalUpdate;
+use crate::{PatternEvalUpdate, threads::tracking};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
 pub enum PEWSServerMessage {
-    PlaybackUpdate{ evals: Vec<BrushAtAnimLocalTime> }
+    PlaybackUpdate{ evals: Vec<BrushAtAnimLocalTime> },
+    TrackingData{ tracking_frame: tracking::TrackingFrame },
 }
 
 pub struct MAHWebsocket {
@@ -225,17 +226,38 @@ fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &PEW
     }
 }
 
-fn websocket_dispatcher_loop_thread(playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>, wsclients: Arc<Mutex<Vec<MAHWebsocket>>>) {
-    while let Ok(msg) = playback_updates_rx.recv() {
+fn websocket_dispatcher_loop_thread(
+    wsclients: Arc<Mutex<Vec<MAHWebsocket>>>,
+    playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>,
+    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<PEWSServerMessage>>,
+) {
+    while let Ok(msg) =
+        if let Some(tracking_data_ws_rx) = tracking_data_ws_rx.as_ref() {
+            crossbeam_channel::select! {
+                recv(playback_updates_rx) -> msg => msg,
+                recv(tracking_data_ws_rx) -> msg => msg,
+            }
+        } else {
+            playback_updates_rx.recv()
+        }
+    {
         loop_through_send_removing_fails(&mut wsclients.lock().unwrap(), &msg);
     }
+
     // channel disconnected so we should exit
 }
 
-pub fn start_ws_server(websocket_server_addr: &str, patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>, playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>,) {
+pub fn start_ws_server(
+    websocket_server_addr: &str,
+    patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>,
+    playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>,
+    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<PEWSServerMessage>>,
+) {
     let wsclients = Arc::new(Mutex::new(Vec::new()));
-    let wsclients2 = wsclients.clone();
-    std::thread::spawn(move || websocket_dispatcher_loop_thread(playback_updates_rx, wsclients2));
+    {
+        let wsclients = wsclients.clone();
+        std::thread::spawn(move || websocket_dispatcher_loop_thread(wsclients, playback_updates_rx, tracking_data_ws_rx));
+    }
     let listener = TcpListener::bind(websocket_server_addr).unwrap();
     for stream in listener.incoming() {
         match stream {
