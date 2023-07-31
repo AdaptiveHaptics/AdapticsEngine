@@ -6,12 +6,12 @@ use super::{TrackingFrame, TrackingFrameHand, TrackingFrameHandChirality, Tracki
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct LMCRawTrackingCoords {
+struct LMCRawTrackingVec3 {
 	x: f64,
 	y: f64,
 	z: f64,
 }
-impl From<_LEAP_VECTOR> for LMCRawTrackingCoords {
+impl From<_LEAP_VECTOR> for LMCRawTrackingVec3 {
 	fn from(v: _LEAP_VECTOR) -> Self {
 		Self {
 			x: unsafe { v.__bindgen_anon_1.__bindgen_anon_1.x }.into(),
@@ -29,10 +29,10 @@ struct LMCRawTrackingHand {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 struct LMCRawTrackingPalm {
-	position: LMCRawTrackingCoords,
+	position: LMCRawTrackingVec3,
 	width: f64,
-	normal: LMCRawTrackingCoords,
-	direction: LMCRawTrackingCoords,
+	normal: LMCRawTrackingVec3,
+	direction: LMCRawTrackingVec3,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 struct LMCRawTrackingDigit {
@@ -40,8 +40,8 @@ struct LMCRawTrackingDigit {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 struct LMCRawTrackingBone {
-	start: LMCRawTrackingCoords,
-	end: LMCRawTrackingCoords,
+	start: LMCRawTrackingVec3,
+	end: LMCRawTrackingVec3,
 	width: f64,
 }
 
@@ -189,18 +189,20 @@ fn eleaprs_to_result(res: eLeapRS) -> Result<(), &'static str> {
 	}
 }
 
-impl From<&LMCRawTrackingCoords> for pattern_evaluator::MAHCoordsConst {
-	fn from(raw: &LMCRawTrackingCoords) -> Self {
+impl LMCRawTrackingVec3 {
+	fn to_mah_as_coords(self) -> pattern_evaluator::MAHCoordsConst {
 		pattern_evaluator::MAHCoordsConst {
-			x: raw.x,
-			y: -raw.z + 121.0, // 121mm is the offset from the LMC origin to the haptic origin
-			z: raw.y, // flip y and z to match the haptic coordinate system
+			x: self.x,
+			y: -self.z + 121.0, // 121mm is the offset from the LMC origin to the haptic origin
+			z: self.y, // flip y and z to match the haptic coordinate system
 		}
 	}
-}
-impl From<LMCRawTrackingCoords> for pattern_evaluator::MAHCoordsConst {
-	fn from(raw: LMCRawTrackingCoords) -> Self {
-		(&raw).into()
+	fn to_mah_as_vector(self) -> pattern_evaluator::MAHCoordsConst {
+		pattern_evaluator::MAHCoordsConst {
+			x: self.x,
+			y: -self.z, // flip y and z to match the haptic coordinate system
+			z: self.y, // flip y and z to match the haptic coordinate system
+		}
 	}
 }
 
@@ -212,17 +214,17 @@ impl From<&LMCRawTrackingHand> for TrackingFrame {
 				Some(TrackingFrameHand {
 					chirality: if raw.left_hand { TrackingFrameHandChirality::Left } else { TrackingFrameHandChirality::Right },
 					palm: TrackingFramePalm {
-						position: raw.palm.position.into(),
+						position: raw.palm.position.to_mah_as_coords(),
 						width: raw.palm.width,
-						normal: raw.palm.normal.into(),
-						direction: raw.palm.direction.into(),
+						normal: raw.palm.normal.to_mah_as_vector(),
+						direction: raw.palm.direction.to_mah_as_vector(),
 					},
 					digits: raw.digits.iter().map(|raw_digit| {
 						TrackingFrameDigit {
 							bones: raw_digit.bones.iter().map(|raw_bone| {
 								TrackingFrameBone {
-									start: raw_bone.start.into(),
-									end: raw_bone.end.into(),
+									start: raw_bone.start.to_mah_as_coords(),
+									end: raw_bone.end.to_mah_as_coords(),
 									width: raw_bone.width,
 								}
 							}).collect::<Vec<_>>().try_into().unwrap(), // Converting Vec to fixed-size array
