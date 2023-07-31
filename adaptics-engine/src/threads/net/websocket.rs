@@ -2,6 +2,7 @@ use core::panic;
 use std::{io::prelude::*, sync::{Arc, Mutex}, time::Duration, net::TcpListener};
 use std::{io::BufReader, net::TcpStream};
 use pattern_evaluator::BrushAtAnimLocalTime;
+use schemars::JsonSchema;
 use serde::{Serialize, Deserialize};
 use sha1::{Sha1, Digest};
 use base64::{self, Engine as _};
@@ -9,10 +10,10 @@ use base64::{self, Engine as _};
 use crate::{PatternEvalUpdate, threads::tracking};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
-pub enum PEWSServerMessage {
+pub enum AdapticsWSServerMessage {
     PlaybackUpdate{ evals: Vec<BrushAtAnimLocalTime> },
     TrackingData{ tracking_frame: tracking::TrackingFrame },
 }
@@ -23,7 +24,7 @@ pub struct MAHWebsocket {
     _wsrecvjh: std::thread::JoinHandle<()>
 }
 impl MAHWebsocket {
-    pub fn send(&mut self, wsm: &PEWSServerMessage) -> std::io::Result<usize> {
+    pub fn send(&mut self, wsm: &AdapticsWSServerMessage) -> std::io::Result<usize> {
         let payload = serde_json::to_string(wsm).unwrap();
         self.bufread.get_mut().write(&create_ws_frame(WsFrameOpcodes::Text, payload.as_bytes()))
     }
@@ -208,7 +209,7 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
     wsclients.lock().unwrap().push(pws);
 }
 
-fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &PEWSServerMessage) {
+fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &AdapticsWSServerMessage) {
     let len = wsclients.len();
     let mut del = 0;
     {
@@ -228,8 +229,8 @@ fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &PEW
 
 fn websocket_dispatcher_loop_thread(
     wsclients: Arc<Mutex<Vec<MAHWebsocket>>>,
-    playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>,
-    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<PEWSServerMessage>>,
+    playback_updates_rx: crossbeam_channel::Receiver<AdapticsWSServerMessage>,
+    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<AdapticsWSServerMessage>>,
 ) {
     while let Ok(msg) =
         if let Some(tracking_data_ws_rx) = tracking_data_ws_rx.as_ref() {
@@ -250,8 +251,8 @@ fn websocket_dispatcher_loop_thread(
 pub fn start_ws_server(
     websocket_server_addr: &str,
     patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>,
-    playback_updates_rx: crossbeam_channel::Receiver<PEWSServerMessage>,
-    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<PEWSServerMessage>>,
+    playback_updates_rx: crossbeam_channel::Receiver<AdapticsWSServerMessage>,
+    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<AdapticsWSServerMessage>>,
 ) {
     let wsclients = Arc::new(Mutex::new(Vec::new()));
     {

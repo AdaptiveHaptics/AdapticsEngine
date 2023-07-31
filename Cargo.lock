@@ -16,6 +16,7 @@ dependencies = [
  "interoptopus_backend_csharp",
  "leapc-dyn-sys",
  "rand",
+ "schemars",
  "serde",
  "serde_json",
  "sha1",

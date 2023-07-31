@@ -1,0 +1,269 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AdapticsWSServerMessage",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "cmd",
+        "data"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "enum": [
+            "playback_update"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "evals"
+          ],
+          "properties": {
+            "evals": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/BrushAtAnimLocalTime"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "cmd",
+        "data"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "enum": [
+            "tracking_data"
+          ]
+        },
+        "data": {
+          "type": "object",
+          "required": [
+            "tracking_frame"
+          ],
+          "properties": {
+            "tracking_frame": {
+              "$ref": "#/definitions/TrackingFrame"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "BrushAtAnimLocalTime": {
+      "type": "object",
+      "required": [
+        "next_eval_params",
+        "pattern_time",
+        "stop",
+        "ul_control_point"
+      ],
+      "properties": {
+        "next_eval_params": {
+          "$ref": "#/definitions/NextEvalParams"
+        },
+        "pattern_time": {
+          "type": "number",
+          "format": "double"
+        },
+        "stop": {
+          "type": "boolean"
+        },
+        "ul_control_point": {
+          "$ref": "#/definitions/UltraleapControlPoint"
+        }
+      }
+    },
+    "MAHCoordsConst": {
+      "description": "x and y are used for the xy coordinate system in the 2d designer. z is intended to be orthogonal to the phased array",
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "x": {
+          "description": "in millimeters, [-100, 100]",
+          "type": "number",
+          "format": "double"
+        },
+        "y": {
+          "description": "in millimeters, [-100, 100]",
+          "type": "number",
+          "format": "double"
+        },
+        "z": {
+          "description": "in millimeters, [0, 100]",
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "NextEvalParams": {
+      "type": "object",
+      "required": [
+        "last_eval_pattern_time",
+        "time_offset"
+      ],
+      "properties": {
+        "last_eval_pattern_time": {
+          "type": "number",
+          "format": "double"
+        },
+        "time_offset": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "TrackingFrame": {
+      "type": "object",
+      "properties": {
+        "hand": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TrackingFrameHand"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TrackingFrameBone": {
+      "type": "object",
+      "required": [
+        "end",
+        "start",
+        "width"
+      ],
+      "properties": {
+        "end": {
+          "$ref": "#/definitions/MAHCoordsConst"
+        },
+        "start": {
+          "$ref": "#/definitions/MAHCoordsConst"
+        },
+        "width": {
+          "description": "The average width of the flesh around the bone in millimeters.",
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "TrackingFrameDigit": {
+      "type": "object",
+      "required": [
+        "bones"
+      ],
+      "properties": {
+        "bones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TrackingFrameBone"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        }
+      }
+    },
+    "TrackingFrameHand": {
+      "type": "object",
+      "required": [
+        "chirality",
+        "digits",
+        "palm"
+      ],
+      "properties": {
+        "chirality": {
+          "$ref": "#/definitions/TrackingFrameHandChirality"
+        },
+        "digits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TrackingFrameDigit"
+          },
+          "maxItems": 5,
+          "minItems": 5
+        },
+        "palm": {
+          "$ref": "#/definitions/TrackingFramePalm"
+        }
+      }
+    },
+    "TrackingFrameHandChirality": {
+      "type": "string",
+      "enum": [
+        "Right",
+        "Left"
+      ]
+    },
+    "TrackingFramePalm": {
+      "type": "object",
+      "required": [
+        "direction",
+        "normal",
+        "position",
+        "width"
+      ],
+      "properties": {
+        "direction": {
+          "description": "The unit direction vector pointing from the palm position toward the fingers.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MAHCoordsConst"
+            }
+          ]
+        },
+        "normal": {
+          "description": "If your hand is flat, this vector will point downward, or \"out\" of the front surface of your palm.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MAHCoordsConst"
+            }
+          ]
+        },
+        "position": {
+          "description": "The center position of the palm",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MAHCoordsConst"
+            }
+          ]
+        },
+        "width": {
+          "description": "The estimated width of the palm when the hand is in a flat position.",
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "UltraleapControlPoint": {
+      "type": "object",
+      "required": [
+        "coords",
+        "intensity"
+      ],
+      "properties": {
+        "coords": {
+          "$ref": "#/definitions/MAHCoordsConst"
+        },
+        "intensity": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    }
+  }
+}

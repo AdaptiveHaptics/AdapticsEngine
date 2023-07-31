@@ -11,7 +11,7 @@ mkdir "$pkg_dir"
 
 
 cargo clippy
-cargo test --release
+cargo test --release # also generates bindings (see test/gen-bindings.rs)
 cargo build --release
 
 cp ../target/release/adaptics-engine-cli.exe "$pkg_dir/adaptics-engine-cli.exe"

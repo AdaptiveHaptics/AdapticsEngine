@@ -1,15 +1,50 @@
 use leapc_dyn_sys::*;
 
-use crate::{TLError, threads::net::websocket::PEWSServerMessage};
+use crate::{TLError, threads::net::websocket::AdapticsWSServerMessage};
 
-use super::TrackingFrame;
+use super::{TrackingFrame, TrackingFrameHand, TrackingFrameHandChirality, TrackingFrameDigit, TrackingFrameBone, TrackingFramePalm};
 
-pub struct LMCRawTrackingCoords {
-	pub has_hand: bool,
-	pub x: f64,
-	pub y: f64,
-	pub z: f64,
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct LMCRawTrackingCoords {
+	x: f64,
+	y: f64,
+	z: f64,
 }
+impl From<_LEAP_VECTOR> for LMCRawTrackingCoords {
+	fn from(v: _LEAP_VECTOR) -> Self {
+		Self {
+			x: unsafe { v.__bindgen_anon_1.__bindgen_anon_1.x }.into(),
+			y: unsafe { v.__bindgen_anon_1.__bindgen_anon_1.y }.into(),
+			z: unsafe { v.__bindgen_anon_1.__bindgen_anon_1.z }.into(),
+		}
+	}
+}
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct LMCRawTrackingHand {
+	has_hand: bool,
+	left_hand: bool,
+	palm: LMCRawTrackingPalm,
+	digits: [LMCRawTrackingDigit; 5],
+}
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct LMCRawTrackingPalm {
+	position: LMCRawTrackingCoords,
+	width: f64,
+	normal: LMCRawTrackingCoords,
+	direction: LMCRawTrackingCoords,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct LMCRawTrackingDigit {
+	bones: [LMCRawTrackingBone; 4],
+}
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct LMCRawTrackingBone {
+	start: LMCRawTrackingCoords,
+	end: LMCRawTrackingCoords,
+	width: f64,
+}
+
 
 struct LeapCSafe {
 	lib: LeapC,
@@ -70,7 +105,7 @@ impl LeapCSafe {
 	}
 }
 
-fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingCoords) + 'a>, is_done: Box<dyn Fn() -> bool + 'a>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingHand) + 'a>, is_done: Box<dyn Fn() -> bool + 'a>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
 	let leap_c_safe = LeapCSafe::new()?;
 
 	let connection_handle = leap_c_safe.create_connection()?;
@@ -86,19 +121,32 @@ fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingCoords) + 'a>, is_done: Box<d
 				let lmc_raw_coords = match tracking_event {
 					Some(tracking_event) if tracking_event.tracking_frame_id != 0 && tracking_event.nHands > 0 => {
 						let hand = unsafe { *tracking_event.pHands.offset(0) };
-						LMCRawTrackingCoords {
+						let digits: [LMCRawTrackingDigit; 5] = (0..5).map(|finger_index| {
+							let bones: [LMCRawTrackingBone; 4] = (0..4).map(|bone_index| {
+								let bone = unsafe { &hand.__bindgen_anon_1.digits[finger_index].__bindgen_anon_1.bones[bone_index] };
+
+								LMCRawTrackingBone {
+									start: bone.prev_joint.into(),
+									end: bone.next_joint.into(),
+									width: bone.width.into(),
+								}
+							}).collect::<Vec<_>>().try_into().unwrap(); // Converting Vec to fixed-size array
+
+							LMCRawTrackingDigit { bones, }
+						}).collect::<Vec<_>>().try_into().unwrap(); // Converting Vec to fixed-size array
+						LMCRawTrackingHand {
 							has_hand: true,
-							x: unsafe { hand.palm.position.__bindgen_anon_1.__bindgen_anon_1.x }.into(),
-							y: unsafe { hand.palm.position.__bindgen_anon_1.__bindgen_anon_1.y }.into(),
-							z: unsafe { hand.palm.position.__bindgen_anon_1.__bindgen_anon_1.z }.into(),
+							left_hand: hand.type_ == _eLeapHandType_eLeapHandType_Left,
+							palm: LMCRawTrackingPalm {
+								position: hand.palm.position.into(),
+								width: hand.palm.width.into(),
+								normal: hand.palm.normal.into(),
+								direction: hand.palm.direction.into(),
+							},
+							digits,
 						}
 					},
-					_ => LMCRawTrackingCoords {
-						has_hand: false,
-						x: 0.0,
-						y: 0.0,
-						z: 0.0,
-					}
+					_ => LMCRawTrackingHand::default()
 				};
 				cb_func(&lmc_raw_coords);
 			} else {
@@ -141,25 +189,60 @@ fn eleaprs_to_result(res: eLeapRS) -> Result<(), &'static str> {
 	}
 }
 
-fn lmc_raw_to_tracking_frame(raw: &LMCRawTrackingCoords) -> TrackingFrame {
-	TrackingFrame {
-		hand: if !raw.has_hand { None } else { Some(pattern_evaluator::MAHCoordsConst {
+impl From<&LMCRawTrackingCoords> for pattern_evaluator::MAHCoordsConst {
+	fn from(raw: &LMCRawTrackingCoords) -> Self {
+		pattern_evaluator::MAHCoordsConst {
 			x: raw.x,
 			y: -raw.z + 121.0, // 121mm is the offset from the LMC origin to the haptic origin
 			z: raw.y, // flip y and z to match the haptic coordinate system
-		})}
+		}
+	}
+}
+impl From<LMCRawTrackingCoords> for pattern_evaluator::MAHCoordsConst {
+	fn from(raw: LMCRawTrackingCoords) -> Self {
+		(&raw).into()
+	}
+}
+
+
+impl From<&LMCRawTrackingHand> for TrackingFrame {
+	fn from(raw: &LMCRawTrackingHand) -> Self {
+		TrackingFrame {
+			hand: if !raw.has_hand { None } else {
+				Some(TrackingFrameHand {
+					chirality: if raw.left_hand { TrackingFrameHandChirality::Left } else { TrackingFrameHandChirality::Right },
+					palm: TrackingFramePalm {
+						position: raw.palm.position.into(),
+						width: raw.palm.width,
+						normal: raw.palm.normal.into(),
+						direction: raw.palm.direction.into(),
+					},
+					digits: raw.digits.iter().map(|raw_digit| {
+						TrackingFrameDigit {
+							bones: raw_digit.bones.iter().map(|raw_bone| {
+								TrackingFrameBone {
+									start: raw_bone.start.into(),
+									end: raw_bone.end.into(),
+									width: raw_bone.width,
+								}
+							}).collect::<Vec<_>>().try_into().unwrap(), // Converting Vec to fixed-size array
+						}
+					}).collect::<Vec<_>>().try_into().unwrap(), // Converting Vec to fixed-size array
+				})
+			}
+		}
 	}
 }
 
 pub fn start_tracking_loop(
 	tracking_data_tx: crossbeam_channel::Sender<TrackingFrame>,
-	tracking_data_ws_tx: Option<crossbeam_channel::Sender<PEWSServerMessage>>,
+	tracking_data_ws_tx: Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>,
 	end_tracking_rx: crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-	let tracking_callback = move |raw_coords: &LMCRawTrackingCoords| {
-		let tracking_frame = lmc_raw_to_tracking_frame(raw_coords);
+	let tracking_callback = move |raw_coords: &LMCRawTrackingHand| {
+		let tracking_frame: TrackingFrame = raw_coords.into();
 		tracking_data_tx.send(tracking_frame.clone()).ok(); // ignore send errors, is_done should exit
-		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() { tracking_data_ws_tx.send(PEWSServerMessage::TrackingData { tracking_frame }).ok(); }
+		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() { tracking_data_ws_tx.send(AdapticsWSServerMessage::TrackingData { tracking_frame }).ok(); }
 	};
 	let is_done = || end_tracking_rx.try_recv().is_ok();
 

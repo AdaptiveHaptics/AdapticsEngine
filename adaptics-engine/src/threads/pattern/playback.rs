@@ -3,7 +3,7 @@ use std::ops::Sub;
 use std::time::Instant;
 use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams, MAHTime};
 use serde::{Deserialize, Serialize};
-use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::PEWSServerMessage, tracking::TrackingFrame};
+use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::AdapticsWSServerMessage, tracking::TrackingFrame};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ pub fn pattern_eval_loop(
 	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,
 	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
 	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
-	playback_updates_tx: Option<crossbeam_channel::Sender<PEWSServerMessage>>,
+	playback_updates_tx: Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>,
 	tracking_data_rx: Option<crossbeam_channel::Receiver<TrackingFrame>>,
 ) -> Result<(), crossbeam_channel::RecvError> {
 	let default_pattern = pattern_evaluator::MidAirHapticsAnimationFileFormat {
@@ -67,7 +67,7 @@ pub fn pattern_eval_loop(
 
 	let mut send_stopping_updates = false;
 
-	fn send_playback_updates(last_playback_update: &mut Instant, playback_update_buffer: &mut Vec<BrushAtAnimLocalTime>, playback_updates_tx: &Option<crossbeam_channel::Sender<PEWSServerMessage>>) {
+	fn send_playback_updates(last_playback_update: &mut Instant, playback_update_buffer: &mut Vec<BrushAtAnimLocalTime>, playback_updates_tx: &Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>) {
 		*last_playback_update = Instant::now();
 		if playback_update_buffer.is_empty() {
 			println!("[warn] skipping network update (no evals)");
@@ -79,7 +79,7 @@ pub fn pattern_eval_loop(
 		// 	println!("sending network update ({} evals) ({}ms {} - {}ms {})", playback_update_buffer.len(), first_eval.pattern_time, first_eval.stop, last_eval.pattern_time, last_eval.stop);
 		// }
 		if let Some(playback_updates_tx) = &playback_updates_tx {
-			match playback_updates_tx.try_send(PEWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
+			match playback_updates_tx.try_send(AdapticsWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
 				Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
 				res => res.unwrap()
 			}
@@ -117,9 +117,9 @@ pub fn pattern_eval_loop(
 							let mut eval_arr_tracking_adjusted = eval_arr_raw.clone();
 							if let (true, Some(hand_pos)) = (enable_tracking, &tracking_data.hand) {
 								for e in &mut eval_arr_tracking_adjusted {
-									e.ul_control_point.coords.x += hand_pos.x;
-									e.ul_control_point.coords.y += hand_pos.y;
-									e.ul_control_point.coords.z = hand_pos.z;
+									e.ul_control_point.coords.x += hand_pos.palm.position.x;
+									e.ul_control_point.coords.y += hand_pos.palm.position.y;
+									e.ul_control_point.coords.z = hand_pos.palm.position.z;
 								}
 							}
 							eval_arr_tracking_adjusted

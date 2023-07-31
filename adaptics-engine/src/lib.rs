@@ -12,7 +12,8 @@ pub mod threads;
 use threads::pattern::playback;
 pub use playback::PatternEvalUpdate;
 use threads::streaming;
-use threads::net::websocket::{self, PEWSServerMessage};
+use threads::net::websocket;
+pub use websocket::AdapticsWSServerMessage;
 use threads::tracking;
 pub use pattern_evaluator::PatternEvaluatorParameters;
 
@@ -48,7 +49,7 @@ pub struct AdapticsEngineHandle {
     pattern_eval_handle: thread::JoinHandle<()>,
     patteval_update_tx: crossbeam_channel::Sender<playback::PatternEvalUpdate>,
     ulh_streaming_handle: thread::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>,
-    playback_updates_rx: Option<crossbeam_channel::Receiver<websocket::PEWSServerMessage>>,
+    playback_updates_rx: Option<crossbeam_channel::Receiver<websocket::AdapticsWSServerMessage>>,
 }
 
 fn create_threads(
@@ -469,7 +470,7 @@ pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleI
     let ffi_error: FFIError = match &handle.aeh.playback_updates_rx {
         Some(playback_updates_rx) => {
             match playback_updates_rx.try_recv() {
-                Ok(PEWSServerMessage::PlaybackUpdate { evals }) => {
+                Ok(AdapticsWSServerMessage::PlaybackUpdate { evals }) => {
                     // copy as many evals as possible into eval_results
                     let eval_results_slice = eval_results.as_slice_mut();
                     let evalresults_to_copy = std::cmp::min(eval_results_slice.len(), evals.len());
@@ -477,7 +478,7 @@ pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleI
                     *num_evals = evalresults_to_copy as u32;
                     FFIError::Ok
                 },
-                Ok(PEWSServerMessage::TrackingData { .. }) | // ignore tracking data
+                Ok(AdapticsWSServerMessage::TrackingData { .. }) | // ignore tracking data
                 Err(crossbeam_channel::TryRecvError::Empty) => {
                     *num_evals = 0;
                     FFIError::Ok
