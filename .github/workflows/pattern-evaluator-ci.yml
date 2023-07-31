@@ -37,7 +37,6 @@ jobs:
 
       - name: Install npm dependencies (json-schema-to-typescript)
         run: |
-          cd adaptics-pattern-evaluator
           npm ci
 
       - name: Run the test+build script
