@@ -17,15 +17,15 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 8771849945448536054ul)
+            if (api_version != 16351956191733072596ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (8771849945448536054). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (16351956191733072596). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
 
         /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
-        /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at 30hz.
+        /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "init_adaptics_engine")]
         public static extern ulong init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
 
