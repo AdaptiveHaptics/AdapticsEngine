@@ -17,8 +17,9 @@ pub use websocket::AdapticsWSServerMessage;
 use threads::tracking;
 pub use pattern_evaluator::PatternEvaluatorParameters;
 
+/// The number of seconds between each playback update from the pattern evaluator.
+pub const SECONDS_PER_PLAYBACK_UPDATE: f64 = 1.0 / 60.0;
 const CALLBACK_RATE: f64 = 500.0;
-const SECONDS_PER_PLAYBACK_UPDATE: f64 = 1.0 / 30.0;
 const DEVICE_UPDATE_RATE: u64 = 20000; //20khz
 const SEND_UNTRACKED_PLAYBACK_UPDATES: bool = false;
 
@@ -228,7 +229,7 @@ impl FFIError {
             FFIError::AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo => "The AdapticsEngine thread disconnected. Check deinit_adaptics_engine for more information on what caused the disconnect.",
             FFIError::ErrMsgProvided => "An error occurred. Check err_msg parameter for more information.",
             FFIError::EnablePlaybackUpdatesWasFalse => "enable_playback_updates was false. Call init_adaptics_engine with enable_playback_updates set to true to enable playback updates.",
-            // FFIError::NoPlaybackUpdatesAvailable => "No playback updates available. Playback updates are available at ~30hz while a pattern is playing.",
+            // FFIError::NoPlaybackUpdatesAvailable => "No playback updates available. Playback updates are available at ~(1/SECONDS_PER_PLAYBACK_UPDATE)hz while a pattern is playing.",
             FFIError::ParameterJSONDeserializationFailed => "Parameter JSON deserialization failed.",
             FFIError::HandleIDNotFound => "Handle ID not found.",
         }
@@ -262,7 +263,7 @@ static NEXT_HANDLE_ID: AtomicU64 = AtomicU64::new(0);
 static ENGINE_HANDLE_MAP: RwLock<Option<HashMap<HandleID, AdapticsEngineHandleFFI>>> = RwLock::new(None);
 
 /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
-/// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at 30hz.
+/// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback_updates: bool) -> HandleID {
