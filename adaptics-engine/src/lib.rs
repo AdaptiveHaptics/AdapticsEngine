@@ -58,8 +58,8 @@ fn create_threads(
     disable_playback_updates: bool,
     tracking_data_rx: Option<crossbeam_channel::Receiver<tracking::TrackingFrame>>,
 ) -> AdapticsEngineHandle {
-    let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::unbounded();
-    let (patteval_update_tx, patteval_update_rx) = crossbeam_channel::unbounded();
+    let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::bounded(1);
+    let (patteval_update_tx, patteval_update_rx) = crossbeam_channel::bounded(1);
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded::<Vec<BrushAtAnimLocalTime>>(0);
     let (playback_updates_tx, playback_updates_rx) = if !disable_playback_updates { let (t,r) = crossbeam_channel::bounded(1); (Some(t), Some(r)) } else { (None, None) };
 
@@ -141,7 +141,7 @@ pub fn run_threads_and_wait(
     enable_tracking: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
-    let (tracking_data_tx, tracking_data_rx) = if enable_tracking { let (s, r) = crossbeam_channel::unbounded(); (Some(s), Some(r)) } else { (None, None) };
+    let (tracking_data_tx, tracking_data_rx) = if enable_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
 
     let AdapticsEngineHandle {
         end_streaming_tx,
@@ -152,7 +152,7 @@ pub fn run_threads_and_wait(
     } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), tracking_data_rx);
 
     let (net_handle_opt, tracking_data_ws_tx) = if let Some(websocket_bind_addr) = websocket_bind_addr {
-        let (tracking_data_ws_tx, tracking_data_ws_rx) = if enable_tracking { let (s, r) = crossbeam_channel::unbounded(); (Some(s), Some(r)) } else { (None, None) };
+        let (tracking_data_ws_tx, tracking_data_ws_rx) = if enable_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
         let playback_updates_rx = playback_updates_rx.unwrap();
         let thread = thread::Builder::new()
             .name("net".to_string())

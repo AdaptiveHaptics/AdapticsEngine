@@ -1,3 +1,4 @@
+use crossbeam_channel::TrySendError;
 use leapc_dyn_sys::*;
 
 use crate::{TLError, threads::net::websocket::AdapticsWSServerMessage};
@@ -243,8 +244,18 @@ pub fn start_tracking_loop(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
 	let tracking_callback = move |raw_coords: &LMCRawTrackingHand| {
 		let tracking_frame: TrackingFrame = raw_coords.into();
-		tracking_data_tx.send(tracking_frame.clone()).ok(); // ignore send errors, is_done should exit
-		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() { tracking_data_ws_tx.send(AdapticsWSServerMessage::TrackingData { tracking_frame }).ok(); }
+		match tracking_data_tx.try_send(tracking_frame.clone()) {
+			Ok(_) => {},
+			Err(TrySendError::Disconnected(_)) => {}, // is_done() should return true, so the run loop will exit
+			Err(TrySendError::Full(_)) => { println!("playback thread lagged [tracking]"); }, // we are sending too fast for playback thread, so we can just drop this frame
+		}
+		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() {
+			match tracking_data_ws_tx.try_send(AdapticsWSServerMessage::TrackingData { tracking_frame }) {
+				Ok(_) => {},
+				Err(TrySendError::Disconnected(_)) => {}, // is_done() should return true, so the run loop will exit
+				Err(TrySendError::Full(_)) => { println!("network thread lagged [tracking]"); }, // we are sending too fast for network thread, so we can just drop this frame
+			}
+		}
 	};
 	let is_done = || end_tracking_rx.try_recv().is_ok();
 

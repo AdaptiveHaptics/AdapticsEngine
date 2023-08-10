@@ -80,7 +80,7 @@ pub fn pattern_eval_loop(
 		// }
 		if let Some(playback_updates_tx) = &playback_updates_tx {
 			match playback_updates_tx.try_send(AdapticsWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
-				Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged"); },
+				Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged [playback]"); },
 				res => res.unwrap()
 			}
 		}
