@@ -3,7 +3,7 @@ use std::ops::Sub;
 use std::time::Instant;
 use pattern_evaluator::{PatternEvaluator, PatternEvaluatorParameters, BrushAtAnimLocalTime, NextEvalParams, MAHTime};
 use serde::{Deserialize, Serialize};
-use crate::threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::AdapticsWSServerMessage, tracking::TrackingFrame};
+use crate::{threads::{common::{ MilSec, instant_add_js_milliseconds }, net::websocket::AdapticsWSServerMessage, tracking::TrackingFrame}, DEBUG_LOG_LAG_EVENTS};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,7 +80,7 @@ pub fn pattern_eval_loop(
 		// }
 		if let Some(playback_updates_tx) = &playback_updates_tx {
 			match playback_updates_tx.try_send(AdapticsWSServerMessage::PlaybackUpdate{ evals: playback_update_buffer.clone() }) {
-				Err(crossbeam_channel::TrySendError::Full(_)) => { println!("network thread lagged [playback]"); },
+				Err(crossbeam_channel::TrySendError::Full(_)) => { if DEBUG_LOG_LAG_EVENTS { println!("network thread lagged [playback]"); } },
 				res => res.unwrap()
 			}
 		}

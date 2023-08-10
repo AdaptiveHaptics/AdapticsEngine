@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use pattern_evaluator::BrushAtAnimLocalTime;
 
-use crate::threads::pattern::playback::PatternEvalCall;
+use crate::{threads::pattern::playback::PatternEvalCall, DEBUG_LOG_LAG_EVENTS};
 
 pub fn start_mock_emitter(
 	device_update_rate: u64,
@@ -28,7 +28,7 @@ pub fn start_mock_emitter(
 		while last_tick + ecallback_tick_dur > Instant::now() {} //busy wait
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
-		if elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {:?} > {:?}", elapsed, ecallback_tick_dur); }
+		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {:?} > {:?}", elapsed, ecallback_tick_dur); }
 		last_tick = curr_time;
 
 		let deadline_time = curr_time + deadline_offset;

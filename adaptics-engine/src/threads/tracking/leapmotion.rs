@@ -1,7 +1,7 @@
 use crossbeam_channel::TrySendError;
 use leapc_dyn_sys::*;
 
-use crate::{TLError, threads::net::websocket::AdapticsWSServerMessage};
+use crate::{TLError, threads::net::websocket::AdapticsWSServerMessage, DEBUG_LOG_LAG_EVENTS};
 
 use super::{TrackingFrame, TrackingFrameHand, TrackingFrameHandChirality, TrackingFrameDigit, TrackingFrameBone, TrackingFramePalm};
 
@@ -247,13 +247,13 @@ pub fn start_tracking_loop(
 		match tracking_data_tx.try_send(tracking_frame.clone()) {
 			Ok(_) => {},
 			Err(TrySendError::Disconnected(_)) => {}, // is_done() should return true, so the run loop will exit
-			Err(TrySendError::Full(_)) => { println!("playback thread lagged [tracking]"); }, // we are sending too fast for playback thread, so we can just drop this frame
+			Err(TrySendError::Full(_)) => { if DEBUG_LOG_LAG_EVENTS { println!("playback thread lagged [tracking]"); } }, // we are sending too fast for playback thread, so we can just drop this frame
 		}
 		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() {
 			match tracking_data_ws_tx.try_send(AdapticsWSServerMessage::TrackingData { tracking_frame }) {
 				Ok(_) => {},
 				Err(TrySendError::Disconnected(_)) => {}, // is_done() should return true, so the run loop will exit
-				Err(TrySendError::Full(_)) => { println!("network thread lagged [tracking]"); }, // we are sending too fast for network thread, so we can just drop this frame
+				Err(TrySendError::Full(_)) => { if DEBUG_LOG_LAG_EVENTS { println!("network thread lagged [tracking]"); } }, // we are sending too fast for network thread, so we can just drop this frame
 			}
 		}
 	};

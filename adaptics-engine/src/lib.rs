@@ -23,6 +23,8 @@ const CALLBACK_RATE: f64 = 500.0;
 const DEVICE_UPDATE_RATE: u64 = 20000; //20khz
 const SEND_UNTRACKED_PLAYBACK_UPDATES: bool = false;
 
+const DEBUG_LOG_LAG_EVENTS: bool = true;
+
 
 #[derive(Debug)]
 pub(crate) struct TLError {
