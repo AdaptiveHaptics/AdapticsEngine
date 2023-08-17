@@ -946,7 +946,7 @@ mod tests {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
                 let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
-                if eval_result.ul_control_point.coords.z != 0.0 {
+                if eval_result.ul_control_point.coords.z != 200.0 {
                     println!("{:?}", eval_result);
                 }
                 last_nep = eval_result.next_eval_params;
@@ -978,7 +978,7 @@ mod tests {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
                 let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
-                if eval_result.ul_control_point.coords.z != 0.0 {
+                if eval_result.ul_control_point.coords.z != 200.0 {
                     println!("{:?}", eval_result);
                 }
                 last_nep = eval_result.next_eval_params;
