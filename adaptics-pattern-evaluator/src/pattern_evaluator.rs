@@ -932,7 +932,8 @@ mod tests {
     fn bench() {
         let warmup_iterations = 50;
         let mut max_time = Duration::default();
-        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
+        // let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
+        let pe = PatternEvaluator::new_from_json_string(include_str!("../tests/old-patterns/BenchRain.adaptics")).unwrap(); // runs @ ~40khz (kinda slow, needs profiling)
         for o in 0..3000 {
             if o == warmup_iterations {
                 println!("Warmup done, starting benchmark..");
