@@ -930,20 +930,18 @@ mod tests {
     #[test]
     #[ignore="bench"]
     fn bench() {
-        let warmup_iterations = 50;
+        let max_i = 200;
+        let max_o = 3000;
+        let mut total_now = Instant::now();
         let mut max_time = Duration::default();
-        // let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
+
         let pe = PatternEvaluator::new_from_json_string(include_str!("../tests/old-patterns/BenchRain.adaptics")).unwrap(); // runs @ ~40khz (kinda slow, needs profiling)
-        for o in 0..3000 {
-            if o == warmup_iterations {
-                println!("Warmup done, starting benchmark..");
-                max_time = Duration::default();
-            }
+        for o in 0..max_o {
             let now = Instant::now();
 
             let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default(), geometric_transform: Default::default() };
             let mut last_nep = NextEvalParams { last_eval_pattern_time: 0.0, time_offset: 0.0 };
-            for i in 0..200 {
+            for i in 0..max_i {
                 let time = f64::from(i) * 0.05;
                 pep.time = time;
                 let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
@@ -953,37 +951,38 @@ mod tests {
                 last_nep = eval_result.next_eval_params;
             }
 
-            let elapsed = now.elapsed();
+            let elapsed = now.elapsed() / max_i;
             if elapsed > max_time {
                 max_time = elapsed;
             }
-            println!("elapsed: {:.2?}", elapsed);
+            // println!("elapsed: {:.2?}", elapsed);
         }
+        println!("Total elapsed: {:.2?}", (total_now.elapsed() / max_o) / max_i);
         println!("Max elapsed: {:.2?}", max_time);
     }
 
     //#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-    #[test]
-    #[ignore="bench"]
-    fn benchwasm() {
-        let warmup_iterations = 5;
-        let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
-        for o in 0..3000 {
-            if o == warmup_iterations {
-                println!("Warmup done, starting benchmark..");
-            }
+    // #[test]
+    // #[ignore="bench"]
+    // fn benchwasm() {
+    //     let warmup_iterations = 5;
+    //     let pe = PatternEvaluator::new_from_json_string(&create_test_pattern_json()).unwrap();
+    //     for o in 0..3000 {
+    //         if o == warmup_iterations {
+    //             println!("Warmup done, starting benchmark..");
+    //         }
 
-            let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default(), geometric_transform: Default::default() };
-            let mut last_nep = NextEvalParams { last_eval_pattern_time: 0.0, time_offset: 0.0 };
-            for i in 0..200 {
-                let time = f64::from(i) * 0.05;
-                pep.time = time;
-                let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
-                if eval_result.ul_control_point.coords.z != 200.0 {
-                    println!("{:?}", eval_result);
-                }
-                last_nep = eval_result.next_eval_params;
-            }
-        }
-    }
+    //         let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default(), geometric_transform: Default::default() };
+    //         let mut last_nep = NextEvalParams { last_eval_pattern_time: 0.0, time_offset: 0.0 };
+    //         for i in 0..200 {
+    //             let time = f64::from(i) * 0.05;
+    //             pep.time = time;
+    //             let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
+    //             if eval_result.ul_control_point.coords.z != 200.0 {
+    //                 println!("{:?}", eval_result);
+    //             }
+    //             last_nep = eval_result.next_eval_params;
+    //         }
+    //     }
+    // }
 }
