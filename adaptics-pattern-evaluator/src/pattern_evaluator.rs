@@ -99,7 +99,7 @@ impl PatternEvaluator {
                     update_kfc!(kf, coords :); // pause behavior
                 },
             }
-            kfc.keyframe = Some(kf.clone());
+            kfc.keyframe = Some(kf);
         }
         kfc
     }
@@ -511,7 +511,7 @@ struct MAHKeyframeConfig<'a> {
     coords: Option<PrimitiveWithTransitionAtTime<'a, CoordsWithTransition>>,
     brush: Option<PrimitiveWithTransitionAtTime<'a, BrushWithTransition>>,
     intensity: Option<PrimitiveWithTransitionAtTime<'a, IntensityWithTransition>>,
-    keyframe: Option<MAHKeyframe>,
+    keyframe: Option<&'a MAHKeyframe>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
