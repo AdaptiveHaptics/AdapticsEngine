@@ -45,8 +45,7 @@ pub fn try_parse_into_latest_version(mah_animation_json: &str) -> Result<String,
 }
 
 impl PatternEvaluator {
-    pub fn new(mah_animation: MidAirHapticsAnimationFileFormat) -> Self {
-        let mut mah_animation = mah_animation;
+    pub fn new(mut mah_animation: MidAirHapticsAnimationFileFormat) -> Self {
         mah_animation.keyframes.sort_by(|a, b| a.time().total_cmp(b.time()));
 
         Self {
@@ -55,10 +54,8 @@ impl PatternEvaluator {
     }
 
     pub fn new_from_json_string(mah_animation_json: &str) -> Result<Self, serde_json::Error> {
-        let mut mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
-        mah_animation.keyframes.sort_by(|a, b| a.time().total_cmp(b.time()));
-
-        Ok(Self { mah_animation })
+        let mah_animation: MidAirHapticsAnimationFileFormat = serde_json::from_str(mah_animation_json)?;
+        Ok(PatternEvaluator::new(mah_animation))
     }
 
     fn get_kf_config_type(&self, t: MAHTime, prev: bool) -> MAHKeyframeConfig {
