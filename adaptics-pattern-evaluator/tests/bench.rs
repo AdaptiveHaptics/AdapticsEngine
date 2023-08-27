@@ -31,23 +31,22 @@ fn bench_pattern_evaluator(pe: PatternEvaluator, max_i: u32, max_o: usize) -> Ve
 #[test]
 #[ignore="bench"]
 fn bench() {
-	let max_i = 10000;
-	let max_o = 150;
+	let max_i = 40;
+	let max_o = 1000;
 
 	let rainbench_pat = include_str!("../tests/old-patterns/BenchRain.adaptics");
-	let rainbench_pat_4x = {
-		let mut rainbench_pat_4x: MidAirHapticsAnimationFileFormat = serde_json::from_str(rainbench_pat).unwrap();
-		rainbench_pat_4x.keyframes.extend(rainbench_pat_4x.keyframes.clone());
-		rainbench_pat_4x.keyframes.extend(rainbench_pat_4x.keyframes.clone()); //4x
-		rainbench_pat_4x
+	let rainbench_pat_2x = { // 4x is still 500kHz on my machine, but makes the box plot seem like there is an exponential performance falloff. 2x might be better to show the linear slope.
+		let mut rainbench_pat_2x: MidAirHapticsAnimationFileFormat = serde_json::from_str(rainbench_pat).unwrap();
+		rainbench_pat_2x.keyframes.extend(rainbench_pat_2x.keyframes.clone());
+		rainbench_pat_2x
 	};
 
-	let bench_pes = HashMap::from([
+	let bench_pes = [
 		("base", PatternEvaluator::new(base_bench_pattern())),
 		("rainbench", PatternEvaluator::new_from_json_string(rainbench_pat).unwrap()),
-		("rainbench4x", PatternEvaluator::new(rainbench_pat_4x)),
+		("rainbench2x", PatternEvaluator::new(rainbench_pat_2x)),
 		("rainbenchmoreformulas", PatternEvaluator::new_from_json_string(include_str!("../tests/old-patterns/BenchRainMoreFormulas.adaptics")).unwrap()),
-	]);
+	];
 
 	let csv_file: String = bench_pes.into_iter()
 		.map(|(name, pe)| (name, bench_pattern_evaluator(pe, max_i, max_o))) //run bench

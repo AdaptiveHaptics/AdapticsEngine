@@ -5,3 +5,7 @@ members = [
     "adaptics-pattern-evaluator",
     "leapc-dyn-sys",
 ]
+
+# enable for profiling
+# [profile.release]
+# debug = true
