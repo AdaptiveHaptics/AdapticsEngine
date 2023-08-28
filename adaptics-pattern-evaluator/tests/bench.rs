@@ -3,16 +3,17 @@ use pattern_evaluator::*;
 use std::{time::{Instant, Duration}, collections::HashMap, path::Path};
 
 
-fn bench_pattern_evaluator(pe: PatternEvaluator, max_i: u32, max_o: usize) -> Vec<Duration> {
-	let mut all_elapsed = Vec::with_capacity(max_o);
+fn bench_pattern_evaluator(pe: PatternEvaluator, max_i: u32, max_o: u32) -> Vec<Duration> {
+	let step_ms = 0.05;
+	let mut all_elapsed = Vec::with_capacity(max_o as usize);
 
-	for _o in 0..max_o {
+	for o in 0..max_o {
 		let now = Instant::now();
 
 		let mut pep = PatternEvaluatorParameters { time: 0.0, user_parameters: Default::default(), geometric_transform: Default::default() };
 		let mut last_nep = NextEvalParams::default();
 		for i in 0..max_i {
-			let time = f64::from(i) * 0.05;
+			let time = f64::from(i) * step_ms + f64::from(o) * f64::from(max_i) * step_ms;
 			pep.time = time;
 			let eval_result = pe.eval_path_at_anim_local_time(&pep, &last_nep);
 			if eval_result.ul_control_point.coords.z != 200.0 {
