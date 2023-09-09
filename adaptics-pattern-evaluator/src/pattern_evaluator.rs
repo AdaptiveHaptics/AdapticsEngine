@@ -62,10 +62,10 @@ impl PatternEvaluator {
         let mut kfc = MAHKeyframeConfig::default();
         macro_rules! update_kfc {
             ($kf:ident, $prop:ident ?) => { // update time and value (if optional prop present)
-                kfc.$prop = $kf.$prop.as_ref().map(|b| PrimitiveWithTransitionAtTime {
+                kfc.$prop = $kf.$prop.as_ref().map(|b| PrimitiveWithTransitionAtTime { //perf: 3.47%
                     time: $kf.time,
                     pwt: b,
-                }).or(kfc.$prop);
+                }).or(kfc.$prop); //perf: 1.19%
             };
             ($kf:ident, $prop:ident !) => { // update time and value with non optional prop
                 kfc.$prop = Some(PrimitiveWithTransitionAtTime {
@@ -77,10 +77,10 @@ impl PatternEvaluator {
                 kfc.$prop = kfc.$prop.map(|mut c| { c.time = $kf.time; c });
             };
         }
-        let kf_iter: Vec<_> = if prev { self.mah_animation.keyframes.iter().collect() } else { self.mah_animation.keyframes.iter().rev().collect() };
-        for kf in kf_iter {
-            if prev { if kf.time() > &t { break; } }
-			else if kf.time() <= &t { break; }
+        let kf_iter: Vec<_> = if prev { self.mah_animation.keyframes.iter().collect() } else { self.mah_animation.keyframes.iter().rev().collect() }; // perf 2.23%
+        for kf in kf_iter { // perf 1.50%
+            if prev { if kf.time() > &t { break; } } // perf 2.42%:
+			else if kf.time() <= &t { break; } // perf 5.57%: idk how these have a higher perf impact than creating kf_iter (even plus looping over it)
             match kf {
                 MAHKeyframe::Standard(kf) => {
                     update_kfc!(kf, coords !);
@@ -335,7 +335,7 @@ impl PatternEvaluator {
         // apply (one) cjump
         let (pattern_time, nep) = {
             let nep = self.get_cjumps_from_last_eval_to_current(nep.last_eval_pattern_time, pattern_time)
-                .find(|cjump| cjump.condition.eval(&dyn_up_info))
+                .find(|cjump| cjump.condition.eval(&dyn_up_info)) // perf (6.85%): try move this into `get_cjumps_from_last_eval_to_current` to avoid unnecessary iterations and use concrete type instead of dyn
                 .map_or(NextEvalParams {
                     last_eval_pattern_time: pattern_time,
                     time_offset: nep.time_offset,

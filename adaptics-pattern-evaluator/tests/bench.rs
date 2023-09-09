@@ -26,14 +26,19 @@ fn bench_pattern_evaluator(pe: PatternEvaluator, max_i: u32, max_o: u32) -> Vec<
 		all_elapsed.push(elapsed);
 	}
 
+	// print average elapsed
+	let avg_elapsed = all_elapsed.iter().fold(Duration::default(), |acc, x| acc + *x) / max_o;
+	let avg_khz = 1.0 / (avg_elapsed.as_secs_f64() * 1000.0);
+	println!("avg: {:?} (~{:.0}kHz)", avg_elapsed, avg_khz);
+
 	all_elapsed
 }
 
 #[test]
 #[ignore="bench"]
 fn bench() {
-	let max_i = 40;
-	let max_o = 1000;
+	let max_i = 500;
+	let max_o = 30000;
 
 	let rainbench_pat = include_str!("../tests/old-patterns/BenchRain.adaptics");
 	let rainbench_pat_2x = { // 4x is still 500kHz on my machine, but makes the box plot seem like there is an exponential performance falloff. 2x might be better to show the linear slope.
@@ -43,9 +48,9 @@ fn bench() {
 	};
 
 	let bench_pes = [
-		("base", PatternEvaluator::new(base_bench_pattern())),
-		("rainbench", PatternEvaluator::new_from_json_string(rainbench_pat).unwrap()),
-		("rainbench2x", PatternEvaluator::new(rainbench_pat_2x)),
+		// ("base", PatternEvaluator::new(base_bench_pattern())),
+		// ("rainbench", PatternEvaluator::new_from_json_string(rainbench_pat).unwrap()),
+		// ("rainbench2x", PatternEvaluator::new(rainbench_pat_2x)),
 		("rainbenchmoreformulas", PatternEvaluator::new_from_json_string(include_str!("../tests/old-patterns/BenchRainMoreFormulas.adaptics")).unwrap()),
 	];
 
