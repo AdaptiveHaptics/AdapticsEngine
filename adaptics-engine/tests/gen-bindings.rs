@@ -11,6 +11,7 @@ fn generate_bindings() {
 	std::fs::remove_dir_all(path).ok();
 
 	bindings_csharp(&path.join("csharp"));
+	bindings_c(&path.join("c"));
 	bindings_websocket(&path.join("websocket"));
 }
 
@@ -32,6 +33,21 @@ fn bindings_csharp(path: &Path) {
 		.add_overload_writer(DotNet::new())
 		// .add_overload_writer(Unity::new()) //requires use_unsafe or something see https://docs.rs/interoptopus_backend_csharp/latest/interoptopus_backend_csharp/overloads/index.html
 		.write_file(path.join("AdapticsEngineInterop.cs")).unwrap();
+}
+
+fn bindings_c(path: &Path) {
+	std::fs::create_dir_all(path).ok();
+
+	use interoptopus_backend_c::{Config, Generator};
+
+	let config = Config {
+		ifndef: "ADAPTICS_ENGINE_H".to_string(),
+		..Config::default()
+	};
+
+	Generator::new(config, adaptics_engine::ffi_inventory())
+		// .add_overload_writer(Unity::new()) //requires use_unsafe or something see https://docs.rs/interoptopus_backend_csharp/latest/interoptopus_backend_csharp/overloads/index.html
+		.write_file(path.join("adapticsengine.h")).unwrap();
 }
 
 fn bindings_websocket(path: &Path) {

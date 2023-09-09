@@ -13,6 +13,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "interoptopus",
+ "interoptopus_backend_c",
  "interoptopus_backend_csharp",
  "leapc-dyn-sys",
  "rand",
@@ -462,6 +463,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e24e3521977654850604f2dcdcf0250145aa2c3853686eec15700d91730c890f"
 dependencies = [
  "interoptopus_proc",
+]
+
+[[package]]
+name = "interoptopus_backend_c"
+version = "0.14.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1b909496c85ee24a8cc606c97dc4d04ec5f748a87234bf2857dbf74d291a75b"
+dependencies = [
+ "heck",
+ "interoptopus",
 ]
 
 [[package]]

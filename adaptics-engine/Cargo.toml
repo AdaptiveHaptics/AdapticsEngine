@@ -38,6 +38,7 @@ clap = { version = "4.1.6", features = ["derive"] }
 # for Unity/c# bindings
 interoptopus = "0.14.18"
 interoptopus_backend_csharp = "0.14.18"
+interoptopus_backend_c = "0.14.18"
 
 [build-dependencies]
 cxx-build = "1.0"
