@@ -11,6 +11,16 @@ extern "C" {
 #include <stdbool.h>
 
 
+#ifndef ADAPTICS_EXPORT
+#  ifdef _MSC_VER
+#    define ADAPTICS_EXPORT __declspec(dllimport)
+#  else
+#    define ADAPTICS_EXPORT
+#  endif
+#endif
+
+typedef uint64_t AdapticsHandle;
+		
 
 
 typedef enum ffierror
@@ -71,30 +81,33 @@ typedef struct slicemutunityevalresult
 
 /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
 /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
-uint64_t init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
+ADAPTICS_EXPORT uint64_t init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
 
-ffierror deinit_adaptics_engine(uint64_t handle_id, slicemutu8 err_msg);
+ADAPTICS_EXPORT ffierror deinit_adaptics_engine(uint64_t handle_id, slicemutu8 err_msg);
 
 /// Updates the pattern to be played.
 /// For further information, see [PatternEvalUpdate::Pattern].
-ffierror adaptics_engine_update_pattern(uint64_t handle_id, const char* pattern_json);
+ADAPTICS_EXPORT ffierror adaptics_engine_update_pattern(uint64_t handle_id, const char* pattern_json);
+
+/// Alias for [adaptics_engine_update_pattern].
+ADAPTICS_EXPORT ffierror adaptics_engine_update_tacton(uint64_t handle_id, const char* pattern_json);
 
 /// Used to start and stop playback.
 /// For further information, see [PatternEvalUpdate::Playstart].
 ///
 /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
 /// Use [adaptics_engine_update_time()] or [adaptics_engine_update_parameters()] to set the time parameter.
-ffierror adaptics_engine_update_playstart(uint64_t handle_id, double playstart, double playstart_offset);
+ADAPTICS_EXPORT ffierror adaptics_engine_update_playstart(uint64_t handle_id, double playstart, double playstart_offset);
 
 /// Used to update all evaluator_params.
 ///
 /// Accepts a JSON string representing the evaluator parameters. See [PatternEvaluatorParameters].
 /// For further information, see [PatternEvalUpdate::Parameters].
-ffierror adaptics_engine_update_parameters(uint64_t handle_id, const char* evaluator_params);
+ADAPTICS_EXPORT ffierror adaptics_engine_update_parameters(uint64_t handle_id, const char* evaluator_params);
 
 /// Resets all evaluator parameters to their default values.
 /// For further information, see [PatternEvalUpdate::Parameters].
-ffierror adaptics_engine_reset_parameters(uint64_t handle_id);
+ADAPTICS_EXPORT ffierror adaptics_engine_reset_parameters(uint64_t handle_id);
 
 /// Updates `evaluator_params.time`.
 ///
@@ -103,29 +116,34 @@ ffierror adaptics_engine_reset_parameters(uint64_t handle_id);
 /// # Notes
 /// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
 /// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
-ffierror adaptics_engine_update_time(uint64_t handle_id, double time);
+ADAPTICS_EXPORT ffierror adaptics_engine_update_time(uint64_t handle_id, double time);
 
 /// Updates all user parameters.
 /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
 /// For further information, see [PatternEvalUpdate::UserParameters].
-ffierror adaptics_engine_update_user_parameters(uint64_t handle_id, const char* user_parameters);
+ADAPTICS_EXPORT ffierror adaptics_engine_update_user_parameters(uint64_t handle_id, const char* user_parameters);
+
+/// Updates a single user parameter.
+/// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+/// For further information, see [PatternEvalUpdate::UserParameters].
+ADAPTICS_EXPORT ffierror adaptics_engine_update_user_parameter(uint64_t handle_id, const char* name, double value);
 
 /// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
 /// For further information, see [PatternEvalUpdate::GeoTransformMatrix].
-ffierror adaptics_engine_update_geo_transform_matrix(uint64_t handle_id, geomatrix geo_matrix);
+ADAPTICS_EXPORT ffierror adaptics_engine_update_geo_transform_matrix(uint64_t handle_id, geomatrix geo_matrix);
 
 /// Populate `eval_results` with the latest evaluation results.
 /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
 ///
 /// # Safety
 /// `num_evals` must be a valid pointer to a u32
-ffierror adaptics_engine_get_playback_updates(uint64_t handle_id, slicemutunityevalresult* eval_results, uint32_t* num_evals);
+ADAPTICS_EXPORT ffierror adaptics_engine_get_playback_updates(uint64_t handle_id, slicemutunityevalresult* eval_results, uint32_t* num_evals);
 
 /// Guard function used by bindings.
 ///
 /// Change impl version in this comment to force bump the API version.
 /// impl_version: 1
-uint64_t ffi_api_guard();
+ADAPTICS_EXPORT uint64_t ffi_api_guard();
 
 
 #ifdef __cplusplus

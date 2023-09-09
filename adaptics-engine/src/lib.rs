@@ -330,6 +330,12 @@ pub extern "C" fn adaptics_engine_update_pattern(handle_id: HandleID, pattern_js
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).into();
     ffi_error
 }
+/// Alias for [adaptics_engine_update_pattern].
+#[ffi_function]
+#[no_mangle]
+pub extern "C" fn adaptics_engine_update_tacton(handle_id: HandleID, pattern_json: AsciiPointer) -> FFIError {
+    adaptics_engine_update_pattern(handle_id, pattern_json)
+}
 
 /// Used to start and stop playback.
 /// For further information, see [PatternEvalUpdate::Playstart].
@@ -392,6 +398,17 @@ pub extern "C" fn adaptics_engine_update_user_parameters(handle_id: HandleID, us
     get_handle_from_id!(handle <- handle_id);
     let user_parameters = deserialize_json_parameter!(user_parameters);
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::UserParameters { user_parameters }).into();
+    ffi_error
+}
+
+/// Updates a single user parameter.
+/// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+/// For further information, see [PatternEvalUpdate::UserParameters].
+#[ffi_function]
+#[no_mangle]
+pub extern "C" fn adaptics_engine_update_user_parameter(handle_id: HandleID, name: AsciiPointer, value: f64) -> FFIError {
+    get_handle_from_id!(handle <- handle_id);
+    let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::UserParameter { name: name.as_str().unwrap().to_owned(), value }).into();
     ffi_error
 }
 
@@ -513,11 +530,13 @@ pub fn ffi_inventory() -> Inventory {
         .register(function!(init_adaptics_engine))
         .register(function!(deinit_adaptics_engine))
         .register(function!(adaptics_engine_update_pattern))
+        .register(function!(adaptics_engine_update_tacton))
         .register(function!(adaptics_engine_update_playstart))
         .register(function!(adaptics_engine_update_parameters))
         .register(function!(adaptics_engine_reset_parameters))
         .register(function!(adaptics_engine_update_time))
         .register(function!(adaptics_engine_update_user_parameters))
+        .register(function!(adaptics_engine_update_user_parameter))
         .register(function!(adaptics_engine_update_geo_transform_matrix))
         .register(function!(adaptics_engine_get_playback_updates))
         .register(function!(ffi_api_guard))

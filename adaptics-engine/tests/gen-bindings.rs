@@ -42,6 +42,18 @@ fn bindings_c(path: &Path) {
 
 	let config = Config {
 		ifndef: "ADAPTICS_ENGINE_H".to_string(),
+		custom_defines: r###"
+#ifndef ADAPTICS_EXPORT
+#  ifdef _MSC_VER
+#    define ADAPTICS_EXPORT __declspec(dllimport)
+#  else
+#    define ADAPTICS_EXPORT
+#  endif
+#endif
+
+typedef uint64_t AdapticsHandle;
+		"###.to_string(),
+		function_attribute: "ADAPTICS_EXPORT ".to_string(),
 		..Config::default()
 	};
 

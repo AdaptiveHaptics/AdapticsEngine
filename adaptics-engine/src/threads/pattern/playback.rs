@@ -29,6 +29,7 @@ pub enum PatternEvalUpdate {
 	ParameterTime { time: MAHTime },
 	UserParameters { user_parameters: pattern_evaluator::UserParameters },
 	GeoTransformMatrix { transform: pattern_evaluator::GeometricTransformMatrix },
+	UserParameter { name: String, value: f64 },
 }
 
 pub enum PatternEvalCall {
@@ -176,6 +177,7 @@ pub fn pattern_eval_loop(
 					PatternEvalUpdate::ParameterTime { time } => parameters.time = time,
         			PatternEvalUpdate::UserParameters { user_parameters } => parameters.user_parameters = user_parameters,
         			PatternEvalUpdate::GeoTransformMatrix { transform } => parameters.geometric_transform = transform,
+        			PatternEvalUpdate::UserParameter { name, value } => { parameters.user_parameters.insert(name, value); },
 				}
 			},
 			i if Some(i) == tracking_data_rx_idx => {

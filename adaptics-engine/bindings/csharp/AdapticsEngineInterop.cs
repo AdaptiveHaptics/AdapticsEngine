@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 16351956191733072596ul)
+            if (api_version != 12753734697478780626ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (16351956191733072596). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12753734697478780626). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -60,6 +60,20 @@ namespace com.github.AdaptiveHaptics
         public static void adaptics_engine_update_pattern_checked(ulong handle_id, string pattern_json)
         {
             var rval = adaptics_engine_update_pattern(handle_id, pattern_json);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Alias for [adaptics_engine_update_pattern].
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_tacton")]
+        public static extern FFIError adaptics_engine_update_tacton(ulong handle_id, string pattern_json);
+
+        /// Alias for [adaptics_engine_update_pattern].
+        public static void adaptics_engine_update_tacton_checked(ulong handle_id, string pattern_json)
+        {
+            var rval = adaptics_engine_update_tacton(handle_id, pattern_json);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -162,6 +176,24 @@ namespace com.github.AdaptiveHaptics
         public static void adaptics_engine_update_user_parameters_checked(ulong handle_id, string user_parameters)
         {
             var rval = adaptics_engine_update_user_parameters(handle_id, user_parameters);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Updates a single user parameter.
+        /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+        /// For further information, see [PatternEvalUpdate::UserParameters].
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_user_parameter")]
+        public static extern FFIError adaptics_engine_update_user_parameter(ulong handle_id, string name, double value);
+
+        /// Updates a single user parameter.
+        /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+        /// For further information, see [PatternEvalUpdate::UserParameters].
+        public static void adaptics_engine_update_user_parameter_checked(ulong handle_id, string name, double value)
+        {
+            var rval = adaptics_engine_update_user_parameter(handle_id, name, value);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
