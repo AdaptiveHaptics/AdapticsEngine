@@ -194,6 +194,7 @@ impl PatternEvaluator {
         mahunit * (std::f64::consts::PI / 180.0)
     }
 
+    // by using dyn_up_info this is no longer compatible with hapev2
     fn get_hapev2_primitive_params_for_brush(brush: &MAHBrush, dyn_up_info: &DynUserParamInfo) -> HapeV2PrimitiveParams {
         match brush {
             MAHBrush::Circle { stm_freq, .. } => HapeV2PrimitiveParams {
@@ -217,8 +218,8 @@ impl PatternEvaluator {
                 draw_frequency: stm_freq.to_f64(dyn_up_info),
             },
             MAHBrush::Lissajous { a, b, d, x_scale, y_scale, stm_freq, .. } => HapeV2PrimitiveParams {
-                A: x_scale.to_f64(dyn_up_info),
-                B: y_scale.to_f64(dyn_up_info),
+                A: x_scale.to_f64(dyn_up_info) / 1000.0,
+                B: y_scale.to_f64(dyn_up_info) / 1000.0,
                 a: a.to_f64(dyn_up_info),
                 b: b.to_f64(dyn_up_info),
                 d: d.to_f64(dyn_up_info),
