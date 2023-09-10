@@ -216,6 +216,16 @@ impl PatternEvaluator {
                 max_t: 2.0 * std::f64::consts::PI,
                 draw_frequency: stm_freq.to_f64(dyn_up_info),
             },
+            MAHBrush::Lissajous { a, b, d, x_scale, y_scale, stm_freq, .. } => HapeV2PrimitiveParams {
+                A: x_scale.to_f64(dyn_up_info),
+                B: y_scale.to_f64(dyn_up_info),
+                a: a.to_f64(dyn_up_info),
+                b: b.to_f64(dyn_up_info),
+                d: d.to_f64(dyn_up_info),
+                k: 0.0,
+                max_t: 2.0 * std::f64::consts::PI,
+                draw_frequency: stm_freq.to_f64(dyn_up_info),
+            }
         }
     }
 
@@ -235,7 +245,7 @@ impl PatternEvaluator {
                         },
                         am_freq: am_freq.to_f64(dyn_up_info),
                     }
-                }
+                },
                 MAHBrush::Line { length, thickness, rotation, am_freq, stm_freq: _ } => {
                     let length = PatternEvaluator::unit_convert_dist_to_hapev2(&length.to_f64(dyn_up_info));
                     let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(&thickness.to_f64(dyn_up_info));
@@ -250,7 +260,19 @@ impl PatternEvaluator {
                         },
                         am_freq: am_freq.to_f64(dyn_up_info),
                     }
-                }
+                },
+                MAHBrush::Lissajous { rotation, am_freq, .. } => {
+                    BrushEvalParams {
+                        primitive_type: std::mem::discriminant(brush),
+                        primitive_params,
+                        painter: Painter {
+                            z_rot: rotation.to_f64(dyn_up_info),
+                            x_scale: 1.0,
+                            y_scale: 1.0,
+                        },
+                        am_freq: am_freq.to_f64(dyn_up_info),
+                    }
+                },
             }
         }
 

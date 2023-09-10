@@ -205,6 +205,24 @@ pub enum MAHBrush {
         #[serde(default = "default_stm_freq")]
         stm_freq: MAHDynamicF64,
     },
+    Lissajous {
+        a: MAHDynamicF64,
+        b: MAHDynamicF64,
+        d: MAHDynamicF64,
+
+        /// Degrees
+        rotation: MAHDynamicF64,
+        /// Millimeters
+        x_scale: MAHDynamicF64,
+        /// Millimeters
+        y_scale: MAHDynamicF64,
+
+        /// AM frequency in HZ
+        am_freq: MAHDynamicF64,
+        /// STM frequency in HZ
+        #[serde(default = "default_stm_freq")]
+        stm_freq: MAHDynamicF64,
+    },
 }
 fn default_stm_freq() -> MAHDynamicF64 { 100.0.into() }
 
