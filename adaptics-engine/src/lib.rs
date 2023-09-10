@@ -512,6 +512,20 @@ pub unsafe extern "C" fn adaptics_engine_get_playback_updates(handle_id: HandleI
 }
 
 
+/// Higher level function to load a new pattern and instantly start playback.
+#[ffi_function]
+#[no_mangle]
+pub extern "C" fn adaptics_engine_play_tacton_immediate(handle_id: HandleID, tacton_json: AsciiPointer) -> FFIError {
+    let err = adaptics_engine_update_pattern(handle_id, tacton_json);
+    if err != FFIError::Ok { return err; }
+
+    adaptics_engine_reset_parameters(handle_id);
+    let playstart = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64() * 1000.0;
+    let playstart_offset = 0.0;
+
+    adaptics_engine_update_playstart(handle_id, playstart, playstart_offset)
+}
+
 
 
 /// Guard function used by bindings.
@@ -539,6 +553,7 @@ pub fn ffi_inventory() -> Inventory {
         .register(function!(adaptics_engine_update_user_parameter))
         .register(function!(adaptics_engine_update_geo_transform_matrix))
         .register(function!(adaptics_engine_get_playback_updates))
+        .register(function!(adaptics_engine_play_tacton_immediate))
         .register(function!(ffi_api_guard))
         .inventory()
 }

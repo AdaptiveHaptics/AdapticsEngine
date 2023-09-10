@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 12753734697478780626ul)
+            if (api_version != 10574089810955595425ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12753734697478780626). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (10574089810955595425). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -244,6 +244,20 @@ namespace com.github.AdaptiveHaptics
             finally
             {
                 eval_results_pinned.Free();
+            }
+        }
+
+        /// Higher level function to load a new pattern and instantly start playback.
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_play_tacton_immediate")]
+        public static extern FFIError adaptics_engine_play_tacton_immediate(ulong handle_id, string tacton_json);
+
+        /// Higher level function to load a new pattern and instantly start playback.
+        public static void adaptics_engine_play_tacton_immediate_checked(ulong handle_id, string tacton_json)
+        {
+            var rval = adaptics_engine_play_tacton_immediate(handle_id, tacton_json);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
             }
         }
 

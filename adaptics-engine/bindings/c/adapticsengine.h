@@ -139,6 +139,9 @@ ADAPTICS_EXPORT ffierror adaptics_engine_update_geo_transform_matrix(uint64_t ha
 /// `num_evals` must be a valid pointer to a u32
 ADAPTICS_EXPORT ffierror adaptics_engine_get_playback_updates(uint64_t handle_id, slicemutunityevalresult* eval_results, uint32_t* num_evals);
 
+/// Higher level function to load a new pattern and instantly start playback.
+ADAPTICS_EXPORT ffierror adaptics_engine_play_tacton_immediate(uint64_t handle_id, const char* tacton_json);
+
 /// Guard function used by bindings.
 ///
 /// Change impl version in this comment to force bump the API version.
