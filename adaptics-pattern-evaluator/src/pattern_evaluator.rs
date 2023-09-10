@@ -194,9 +194,9 @@ impl PatternEvaluator {
         mahunit * (std::f64::consts::PI / 180.0)
     }
 
-    fn get_hapev2_primitive_params_for_brush(brush: &MAHBrush) -> HapeV2PrimitiveParams {
+    fn get_hapev2_primitive_params_for_brush(brush: &MAHBrush, dyn_up_info: &DynUserParamInfo) -> HapeV2PrimitiveParams {
         match brush {
-            MAHBrush::Circle { .. } => HapeV2PrimitiveParams {
+            MAHBrush::Circle { stm_freq, .. } => HapeV2PrimitiveParams {
                 A: 1.0,
                 B: 1.0,
                 a: 1.0,
@@ -204,9 +204,9 @@ impl PatternEvaluator {
                 d: std::f64::consts::PI / 2.0,
                 k: 0.0,
                 max_t: 2.0 * std::f64::consts::PI,
-                draw_frequency: 100.0,
+                draw_frequency: stm_freq.to_f64(dyn_up_info),
             },
-            MAHBrush::Line { .. } => HapeV2PrimitiveParams {
+            MAHBrush::Line { stm_freq, .. } => HapeV2PrimitiveParams {
                 A: 1.0,
                 B: 0.0,
                 a: 1.0,
@@ -214,16 +214,16 @@ impl PatternEvaluator {
                 d: std::f64::consts::PI / 2.0,
                 k: 0.0,
                 max_t: 2.0 * std::f64::consts::PI,
-                draw_frequency: 100.0,
+                draw_frequency: stm_freq.to_f64(dyn_up_info),
             },
         }
     }
 
     fn eval_brush_hapev2(pattern_time: MAHTime, prev_kfc: &MAHKeyframeConfig, next_kfc: &MAHKeyframeConfig, dyn_up_info: &DynUserParamInfo) -> BrushEvalParams {
         fn eval_mahbrush(brush: &MAHBrush, dyn_up_info: &DynUserParamInfo) -> BrushEvalParams {
-            let primitive_params = PatternEvaluator::get_hapev2_primitive_params_for_brush(brush);
+            let primitive_params = PatternEvaluator::get_hapev2_primitive_params_for_brush(brush, dyn_up_info);
             match brush {
-                MAHBrush::Circle { radius, am_freq } => {
+                MAHBrush::Circle { radius, am_freq, stm_freq: _ } => {
                     let amplitude = PatternEvaluator::unit_convert_dist_to_hapev2(&radius.to_f64(dyn_up_info));
                     BrushEvalParams {
                         primitive_type: std::mem::discriminant(brush),
@@ -236,7 +236,7 @@ impl PatternEvaluator {
                         am_freq: am_freq.to_f64(dyn_up_info),
                     }
                 }
-                MAHBrush::Line { length, thickness, rotation, am_freq } => {
+                MAHBrush::Line { length, thickness, rotation, am_freq, stm_freq: _ } => {
                     let length = PatternEvaluator::unit_convert_dist_to_hapev2(&length.to_f64(dyn_up_info));
                     let thickness = PatternEvaluator::unit_convert_dist_to_hapev2(&thickness.to_f64(dyn_up_info));
                     let rotation = PatternEvaluator::unit_convert_rot_to_hapev2(&rotation.to_f64(dyn_up_info));
@@ -277,7 +277,7 @@ impl PatternEvaluator {
                 }
             }
             (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush, dyn_up_info),
-            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into() }, dyn_up_info),
+            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into(), stm_freq: 0.0.into() }, dyn_up_info),
         }
 
 
@@ -770,7 +770,7 @@ mod tests {
                 MAHKeyframe::Standard(MAHKeyframeStandard {
                     time: 0.0,
                     brush: Some(BrushWithTransition {
-                        brush: MAHBrush::Circle { radius: MAHDynamicF64::F64(10.0), am_freq: MAHDynamicF64::F64(0.0) },
+                        brush: MAHBrush::Circle { radius: MAHDynamicF64::F64(10.0), am_freq: MAHDynamicF64::F64(0.0), stm_freq: MAHDynamicF64::F64(100.0) },
                         transition: MAHTransition::Linear {  }
                     }),
                     intensity: Some(IntensityWithTransition {
@@ -786,7 +786,7 @@ mod tests {
                 MAHKeyframe::Standard(MAHKeyframeStandard {
                     time: 10.0,
                     brush: Some(BrushWithTransition {
-                        brush: MAHBrush::Circle { radius: MAHDynamicF64::F64(5.0), am_freq: MAHDynamicF64::F64(0.0) },
+                        brush: MAHBrush::Circle { radius: MAHDynamicF64::F64(5.0), am_freq: MAHDynamicF64::F64(0.0), stm_freq: MAHDynamicF64::F64(100.0) },
                         transition: MAHTransition::Linear {  }
                     }),
                     intensity: Some(IntensityWithTransition {
@@ -875,8 +875,9 @@ mod tests {
         let nep = NextEvalParams::default();
         let eval_res = pattern_eval.eval_path_at_anim_local_time(&p, &nep);
 
-        let expected_brush = MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into() };
-        let primitive = PatternEvaluator::get_hapev2_primitive_params_for_brush(&expected_brush);
+        let dyn_up_info = UserParametersConstrained::from(&p.user_parameters, &pattern_eval.mah_animation.user_parameter_definitions);
+        let expected_brush = MAHBrush::Circle { radius: 10.0.into(), am_freq: 0.0.into(), stm_freq: 100.0.into() };
+        let primitive = PatternEvaluator::get_hapev2_primitive_params_for_brush(&expected_brush, &dyn_up_info);
         assert_eq!(eval_res, PathAtAnimLocalTime {
             ul_control_point: UltraleapControlPoint { coords: MAHCoordsConst { x: -10.0, y: 0.0, z: 200.0 }, intensity: 1.0 },
             pattern_time: 0.0,

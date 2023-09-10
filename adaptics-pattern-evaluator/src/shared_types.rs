@@ -188,7 +188,10 @@ pub enum MAHBrush {
         /// Millimeters
         radius: MAHDynamicF64,
         /// AM frequency in HZ
-        am_freq: MAHDynamicF64
+        am_freq: MAHDynamicF64,
+        /// STM frequency in HZ
+        #[serde(default = "default_stm_freq")]
+        stm_freq: MAHDynamicF64,
     },
     Line {
         /// Millimeters
@@ -197,9 +200,13 @@ pub enum MAHBrush {
         /// Degrees
         rotation: MAHDynamicF64,
         /// AM frequency in HZ
-        am_freq: MAHDynamicF64
+        am_freq: MAHDynamicF64,
+        /// STM frequency in HZ
+        #[serde(default = "default_stm_freq")]
+        stm_freq: MAHDynamicF64,
     },
 }
+fn default_stm_freq() -> MAHDynamicF64 { 100.0.into() }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(tag = "name", content = "params")]
