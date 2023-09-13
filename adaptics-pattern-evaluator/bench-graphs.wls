@@ -31,6 +31,12 @@ statFns=Association@((ToString[#]->#)& /@ {Min,Quartiles,Max,StandardDeviation,L
 Dataset[(r|->(#[r])&/@ statFns)/@benchresults]
 
 
+Table[Style["ABC",Large,FontFamily -> "Helvetica Neue",FontWeight->w],{w,{"Light","Medium","SemiBold","Heavy","Black","Fat"}}]
+
+
+customTextStyle[content_, size_] := 
+  Style[content, FontSize -> size, FontFamily -> "Helvetica Neue"]
+
 bc=BoxWhiskerChart[
 	Reverse[benchresults],
 	"Outliers",
@@ -41,22 +47,25 @@ bc=BoxWhiskerChart[
 	(*FrameLabel->{None,"Benchmarks"},*)
 	Frame->False,Axes->True,AxesLabel->{"kHz",""},
 	PlotRange->{{0,1500},Automatic},AxesOrigin->{0,Automatic},
-	Ticks->{{#,""}&/@Range[1,4],{40,500,1000,1500}},
+	Ticks->{{#,""}&/@Range[1,4],{#, Style[ToString[#],FontSize -> 11,FontFamily -> "Helvetica Neue"]} & /@{40,500,1000,1500}},
+	LabelStyle -> {FontFamily -> "Helvetica Neue",FontSize->12},
 	Prolog->{
-		Text[Style["Benchmarks",Bold,FontSize->12],{-50, (Length[benchresults]+1)/2},Automatic,{0,1}],
-		Text[Style["Max Update Rate (higher is better)",Bold,FontSize->11],{1500*0.56,-0.55}],
+		Text[customTextStyle["Benchmarks",15],{-55, (Length[benchresults]+1)/2},Automatic,{0,1}], (* this looks different in the latex *)
+		Text[customTextStyle["Max Engine Update Rate (higher is better)",13.25],{1500*0.56,-0.65}],
 		RGBColor[52/85, 59/85, 28/51],AbsoluteThickness[2.5],HalfLine[{{40,0},{40,1}}],
-		Text[Style["Device Update Rate",Bold,FontSize->11.5],{40+20, 4.8},{-1,0}]
+		Text[customTextStyle["Device Update Rate",13.5],{40+20, 4.8},{-1,0}]
 	},
 	Background->White,
 	ChartStyle->RGBColor[151/255, 11/17, 184/255],
 	PlotRange->All,
-	ImagePadding -> {{5,65},{25,5}},
-	ImageSize->450
+	ImagePadding -> {{5,75},{25,5}},
+	ImageSize->470
 ]
 
 
-Export[FileNameJoin[{NotebookDirectory[], "engine-bench-boxchart.pdf"}], bc]
+exportpath=FileNameJoin[{NotebookDirectory[], "engine-bench-boxchart.pdf"}];
+Export[exportpath, bc,ImageSize->480]
+Show[Import[exportpath,RasterSize->800][[1]],ImageSize->300]
 
 
 (* ::Title:: *)
