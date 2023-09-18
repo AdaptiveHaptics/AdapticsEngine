@@ -302,7 +302,7 @@ impl PatternEvaluator {
                 }
             }
             (Some(prev_brush), None) => eval_mahbrush(&prev_brush.pwt.brush, dyn_up_info),
-            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into(), stm_freq: 0.0.into() }, dyn_up_info),
+            (None, _) => eval_mahbrush(&MAHBrush::Circle { radius: 0.0.into(), am_freq: 0.0.into(), stm_freq: 0.0.into() }, dyn_up_info), // stm_freq 0 here causes 1 eval brush point (and possibly other buggy behavior)
         }
 
 
