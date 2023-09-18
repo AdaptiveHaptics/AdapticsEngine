@@ -94,6 +94,8 @@ impl PatternEvaluator {
                 },
                 MAHKeyframe::Stop(kf) => {
                     update_kfc!(kf, coords :); // pause behavior
+                    update_kfc!(kf, brush :); // stop interp from prev kf to kfs after stop kf  # (1 - stop - 10) will stay at 1 until stop kf instead of interp to 10 ignoring stop
+                    update_kfc!(kf, intensity :); // stop interp from prev kf to kfs after stop kf
                 },
             }
             kfc.keyframe = Some(kf);
