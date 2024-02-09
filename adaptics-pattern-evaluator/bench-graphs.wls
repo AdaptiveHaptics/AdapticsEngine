@@ -31,10 +31,7 @@ statFns=Association@((ToString[#]->#)& /@ {Min,Quartiles,Max,StandardDeviation,L
 Dataset[(r|->(#[r])&/@ statFns)/@benchresults]
 
 
-Table[Style["ABC",Large,FontFamily -> "Helvetica Neue",FontWeight->w],{w,{"Light","Medium","SemiBold","Heavy","Black","Fat"}}]
-
-
-customTextStyle[content_, size_] := 
+customTextStyle[content_, size_] :=
   Style[content, FontSize -> size, FontFamily -> "Helvetica Neue"]
 
 bc=BoxWhiskerChart[
@@ -51,7 +48,7 @@ bc=BoxWhiskerChart[
 	LabelStyle -> {FontFamily -> "Helvetica Neue",FontSize->12},
 	Prolog->{
 		Text[customTextStyle["Benchmarks",15],{-55, (Length[benchresults]+1)/2},Automatic,{0,1}], (* this looks different in the latex *)
-		Text[customTextStyle["Max Engine Update Rate (higher is better)",13.25],{1500*0.56,-0.65}],
+		Text[customTextStyle["Max Engine Update Rate (higher is better)",13.25],{1500*0.56,-0.58}],
 		RGBColor[52/85, 59/85, 28/51],AbsoluteThickness[2.5],HalfLine[{{40,0},{40,1}}],
 		Text[customTextStyle["Device Update Rate",13.5],{40+20, 4.8},{-1,0}]
 	},
@@ -91,12 +88,3 @@ DistributionChart[benchresults,ChartLabels->Automatic,AxesLabel->Automatic,Chart
 
 Around[Mean[#],StandardDeviation[#]]&/@benchresults
 BarChart[%,ChartLabels->Automatic,AxesLabel->Automatic]
-
-
-
-
-
-
-
-
-
