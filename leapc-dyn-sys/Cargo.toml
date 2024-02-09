@@ -1,7 +1,7 @@
 [package]
 name = "leapc-dyn-sys"
 description = "Dynamically linking bindings for the LeapC API"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 links = "LeapC"
 license = "MIT"

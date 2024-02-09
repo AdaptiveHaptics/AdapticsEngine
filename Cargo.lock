@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "adaptics-engine"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "adaptics-pattern-evaluator",
  "base64",
@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "adaptics-pattern-evaluator"
-version = "0.6.3"
+version = "0.6.4"
 dependencies = [
  "getrandom",
  "rand",
@@ -516,7 +516,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "leapc-dyn-sys"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bindgen",
  "libloading",

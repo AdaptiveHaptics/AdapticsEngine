@@ -4,6 +4,7 @@ accepted = [
     "Apache-2.0",
     "MIT",
     "ISC",
+    "BSD-3-Clause",
     "MPL-2.0",
     "Unicode-DFS-2016",
 ]
