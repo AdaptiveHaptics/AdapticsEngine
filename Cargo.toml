@@ -5,6 +5,7 @@ members = [
     "adaptics-pattern-evaluator",
     "leapc-dyn-sys",
 ]
+resolver = "2"
 
 # enable for profiling
 # [profile.release]

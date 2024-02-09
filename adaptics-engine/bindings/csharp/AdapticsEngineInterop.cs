@@ -312,6 +312,7 @@ namespace com.github.AdaptiveHaptics
         public UnityEvalCoords coords;
         public double intensity;
         public double pattern_time;
+        [MarshalAs(UnmanagedType.I1)]
         public bool stop;
     }
 

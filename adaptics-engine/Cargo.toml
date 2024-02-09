@@ -33,7 +33,7 @@ cxx = "1.0"
 sha1 = "0.10"
 base64 = "0.21"
 rand = "0.8"
-clap = { version = "4.1.6", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 
 # for Unity/c# bindings
 interoptopus = "0.14.18"
