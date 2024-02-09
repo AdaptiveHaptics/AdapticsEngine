@@ -54,6 +54,8 @@ fn bindings_c(path: &Path) {
 typedef uint64_t AdapticsHandle;
 		"###.to_string(),
 		function_attribute: "ADAPTICS_EXPORT ".to_string(),
+		prefix: "adaptics_engine_".to_string(),
+		type_naming: interoptopus_backend_c::CNamingStyle::SnakeCase,
 		..Config::default()
 	};
 
