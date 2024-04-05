@@ -4,7 +4,8 @@ use pattern_evaluator::BrushAtAnimLocalTime;
 
 use crate::{threads::pattern::playback::PatternEvalCall, DEBUG_LOG_LAG_EVENTS};
 
-pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // still busy wait for ~1000ms, to avoid thread sleeping for too long
+// pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // if native sleep { still busy wait for ~1000ms, to avoid thread sleeping for too long }
+pub const USE_THREAD_SLEEP: Option<u64> = Some(500); // spin_sleeper still needs some buffer time (it shouldnt need any), but less than native. idk if it overtrusts the os sleep, or its some other slowdown?
 
 pub fn start_mock_emitter(
 	device_update_rate: u64,
@@ -22,15 +23,20 @@ pub fn start_mock_emitter(
 	let deadline_offset = ecallback_tick_dur * 1;
 	let mut last_tick = Instant::now();
 
+	let spin_sleeper = spin_sleep::SpinSleeper::default();
+
 	assert!(device_tick_dur.as_secs_f64() > 0.0, "device_tick_dur must be > 0");
 	loop {
 		if end_streaming_rx.try_recv().is_ok() {
 			break;
 		}
 
-		if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(last_tick + ecallback_tick_dur - Instant::now() - Duration::from_micros(bwt)); } // supports windows high resolution sleep since rust 1.75
+		let next_tick_at = last_tick + ecallback_tick_dur;
+		// if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // supports windows high resolution sleep since rust 1.75
+		if let Some(bwt) = USE_THREAD_SLEEP { spin_sleeper.sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // shouldnt need bwt but it does
+		while next_tick_at > Instant::now() {}
+		// spin_sleeper.sleep(next_tick_at - Instant::now()); // not accurate enough by itself on windows
 
-		while last_tick + ecallback_tick_dur > Instant::now() {}
 
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
