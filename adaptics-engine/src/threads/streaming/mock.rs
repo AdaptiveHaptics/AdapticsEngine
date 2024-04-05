@@ -4,6 +4,8 @@ use pattern_evaluator::BrushAtAnimLocalTime;
 
 use crate::{threads::pattern::playback::PatternEvalCall, DEBUG_LOG_LAG_EVENTS};
 
+pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // still busy wait for ~1000ms, to avoid thread sleeping for too long
+
 pub fn start_mock_emitter(
 	device_update_rate: u64,
 	callback_rate: f64,
@@ -25,7 +27,11 @@ pub fn start_mock_emitter(
 		if end_streaming_rx.try_recv().is_ok() {
 			break;
 		}
-		while last_tick + ecallback_tick_dur > Instant::now() {} //busy wait
+
+		if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(last_tick + ecallback_tick_dur - Instant::now() - Duration::from_micros(bwt)); } // supports windows high resolution sleep since rust 1.75
+
+		while last_tick + ecallback_tick_dur > Instant::now() {}
+
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
 		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {:?} > {:?}", elapsed, ecallback_tick_dur); }
