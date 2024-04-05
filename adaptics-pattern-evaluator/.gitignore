@@ -1,4 +1,5 @@
 node_modules
 pkg
 benchresults.csv
+benchresults_*.csv
 engine-bench-boxchart.pdf

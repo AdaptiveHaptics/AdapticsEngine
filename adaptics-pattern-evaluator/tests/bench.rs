@@ -65,6 +65,43 @@ fn bench() {
 	std::fs::write(csv_filename, csv_file).unwrap();
 }
 
+fn duration_abs_diff(a: Duration, b: Duration) -> Duration {
+	if a > b {
+		a - b
+	} else {
+		b - a
+	}
+}
+
+#[test]
+#[ignore="bench"]
+fn bench_buffer_size_curve() {
+	// let max_i = 40; // 500 cb/sec @ 20kHz
+	let max_o = 30000;
+
+	let rainbench_pat = include_str!("../tests/old-patterns/BenchRain.adaptics");
+
+	let mut csv_file = "buffer_size_ms,avg_elapsed_ns,avg_no_outliers\n".to_string();
+
+	for buffer_size in [1,2,4,8,16,32,64,128,256,512,1024] {
+		let pe = PatternEvaluator::new_from_json_string(rainbench_pat).unwrap();
+
+		let max_i = buffer_size;
+
+		let all_elapsed = bench_pattern_evaluator(pe, max_i, max_o);
+		let avg_elapsed = all_elapsed.iter().fold(Duration::default(), |acc, x| acc + *x) / max_o;
+		let variance = all_elapsed.iter().fold(Duration::default(), |acc, x| acc + duration_abs_diff(*x, avg_elapsed)) / max_o;
+		let no_outliers: Vec<_> = all_elapsed.iter().filter(|x| **x < avg_elapsed + variance).collect();
+		let avg_no_outliers = no_outliers.iter().fold(Duration::default(), |acc, x| acc + **x) / no_outliers.len() as u32;
+
+		let buffer_size_ms = buffer_size as f64 / 20.0; //=20kHz
+		csv_file += &format!("{},{},{}\n", buffer_size_ms, avg_elapsed.as_nanos(), avg_no_outliers.as_nanos());
+	}
+
+	let csv_filename = Path::new("benchresults_buffer_size_curve.csv");
+	std::fs::write(csv_filename, csv_file).unwrap();
+}
+
 fn base_bench_pattern() -> MidAirHapticsAnimationFileFormat {
 	MidAirHapticsAnimationFileFormat {
 		data_format: MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
