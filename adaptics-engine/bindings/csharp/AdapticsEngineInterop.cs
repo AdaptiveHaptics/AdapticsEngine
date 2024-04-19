@@ -17,21 +17,33 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 10574089810955595425ul)
+            if (api_version != 12559145612103383281ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (10574089810955595425). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12559145612103383281). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
 
-        /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
+        /// Initializes the Adaptics Engine, returns a handle ID.
+        ///
+        /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming.
+        ///
         /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
+        ///
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "init_adaptics_engine")]
         public static extern ulong init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
 
+        /// Deinitializes the Adaptics Engine.
+        /// Returns with an error message if available.
+        ///
+        /// The unity package uses a err_msg buffer of size 1024.
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "deinit_adaptics_engine")]
         public static extern FFIError deinit_adaptics_engine(ulong handle_id, SliceMutu8 err_msg);
 
+        /// Deinitializes the Adaptics Engine.
+        /// Returns with an error message if available.
+        ///
+        /// The unity package uses a err_msg buffer of size 1024.
         public static void deinit_adaptics_engine(ulong handle_id, byte[] err_msg)
         {
             var err_msg_pinned = GCHandle.Alloc(err_msg, GCHandleType.Pinned);
@@ -66,11 +78,11 @@ namespace com.github.AdaptiveHaptics
             }
         }
 
-        /// Alias for [adaptics_engine_update_pattern].
+        /// Alias for [crate::adaptics_engine_update_pattern()]
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_tacton")]
         public static extern FFIError adaptics_engine_update_tacton(ulong handle_id, string pattern_json);
 
-        /// Alias for [adaptics_engine_update_pattern].
+        /// Alias for [crate::adaptics_engine_update_pattern()]
         public static void adaptics_engine_update_tacton_checked(ulong handle_id, string pattern_json)
         {
             var rval = adaptics_engine_update_tacton(handle_id, pattern_json);;

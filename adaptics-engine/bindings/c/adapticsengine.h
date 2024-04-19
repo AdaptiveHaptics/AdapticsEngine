@@ -79,17 +79,25 @@ typedef struct adaptics_engine_slice_mut_unity_eval_result
     } adaptics_engine_slice_mut_unity_eval_result;
 
 
-/// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
+/// Initializes the Adaptics Engine, returns a handle ID.
+///
+/// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming.
+///
 /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
+///
 ADAPTICS_EXPORT uint64_t init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
 
+/// Deinitializes the Adaptics Engine.
+/// Returns with an error message if available.
+///
+/// The unity package uses a err_msg buffer of size 1024.
 ADAPTICS_EXPORT adaptics_engine_ffi_error deinit_adaptics_engine(uint64_t handle_id, adaptics_engine_slice_mutu8 err_msg);
 
 /// Updates the pattern to be played.
 /// For further information, see [PatternEvalUpdate::Pattern].
 ADAPTICS_EXPORT adaptics_engine_ffi_error adaptics_engine_update_pattern(uint64_t handle_id, const char* pattern_json);
 
-/// Alias for [adaptics_engine_update_pattern].
+/// Alias for [crate::adaptics_engine_update_pattern()]
 ADAPTICS_EXPORT adaptics_engine_ffi_error adaptics_engine_update_tacton(uint64_t handle_id, const char* pattern_json);
 
 /// Used to start and stop playback.

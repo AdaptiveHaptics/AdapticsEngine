@@ -1,3 +1,44 @@
+/*!
+# Adaptics Engine
+Facilitates playback of adaptive mid-air ultrasound haptic sensations created in the [Adaptics Designer](https://github.com/AdaptiveHaptics/AdapticsDesigner).
+
+## C-API Example
+Example usage of the C-API to play a "loading" tacton and update its "progress" parameter from 0 to 1 over 2 seconds.
+- [`init_adaptics_engine`](crate::init_adaptics_engine())
+- [`adaptics_engine_play_tacton_immediate`](crate::adaptics_engine_play_tacton_immediate())
+- [`adaptics_engine_update_user_parameter`](crate::adaptics_engine_update_user_parameter())
+- [`deinit_adaptics_engine`](crate::deinit_adaptics_engine())
+
+```ignore
+#include "adapticsengine.h"
+int main() {
+    adaptics_engine_ffi_error err;
+    AdapticsHandle aeh = init_adaptics_engine(true, false);
+
+    // Immediately play the "loading" tacton
+    err = adaptics_engine_play_tacton_immediate(aeh, read_file("loading.adaptics"));
+    if (err != ADAPTICS_ENGINE_FFI_ERROR_OK) { return 1; }
+
+    // Update tacton's "progress" parameter from 0 to 1 over 2 seconds
+    for (double i = 0.0; i < 1.0; i += 0.01) {
+        adaptics_engine_update_user_parameter(aeh, "progress", i);
+        sleep_ms(20);
+    }
+
+    // wait for tacton to finish playing
+    sleep_ms(2000);
+
+    char err_msg[1024];
+    err = deinit_adaptics_engine(aeh, err_msg);
+    if (err == ADAPTICS_ENGINE_FFI_ERROR_ERR_MSG_PROVIDED) { printf("AdapTics Error: %s\n", err_msg); }
+    if (err != ADAPTICS_ENGINE_FFI_ERROR_OK) { return 1; }
+
+    return 0;
+}
+```
+
+*/
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, self};
 use std::sync::RwLock;
@@ -264,8 +305,12 @@ type HandleID = u64;
 static NEXT_HANDLE_ID: AtomicU64 = AtomicU64::new(0);
 static ENGINE_HANDLE_MAP: RwLock<Option<HashMap<HandleID, AdapticsEngineHandleFFI>>> = RwLock::new(None);
 
-/// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming
+/// Initializes the Adaptics Engine, returns a handle ID.
+///
+/// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming.
+///
 /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
+///
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback_updates: bool) -> HandleID {
@@ -279,6 +324,10 @@ pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback
     handle_id
 }
 
+/// Deinitializes the Adaptics Engine.
+/// Returns with an error message if available.
+///
+/// The unity package uses a err_msg buffer of size 1024.
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn deinit_adaptics_engine(handle_id: HandleID, mut err_msg: FFISliceMut<u8>) -> FFIError {
@@ -330,7 +379,7 @@ pub extern "C" fn adaptics_engine_update_pattern(handle_id: HandleID, pattern_js
     let ffi_error: FFIError = handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Pattern { pattern_json: pattern_json.as_str().unwrap().to_owned() }).into();
     ffi_error
 }
-/// Alias for [adaptics_engine_update_pattern].
+/// Alias for [crate::adaptics_engine_update_pattern()]
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn adaptics_engine_update_tacton(handle_id: HandleID, pattern_json: AsciiPointer) -> FFIError {

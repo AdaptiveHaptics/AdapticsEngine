@@ -10,18 +10,24 @@ use crate::{threads::{common::{ MilSec, instant_add_js_milliseconds }, net::webs
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
 pub enum PatternEvalUpdate {
+	/// pattern_json is a string containing the tacton/pattern in JSON format (see [pattern_evaluator::MidAirHapticsAnimationFileFormat])
 	#[serde(rename="update_pattern")]
     Pattern{ pattern_json: String },
-	#[serde(rename="update_playstart")]
+
 	/// if playstart is 0.0, then the pattern is stopped. Otherwise, it is started at the time given by `now() + playstart_offset`.
 	///
 	/// I know this is unecessarily complicated. I was not sure how to unify the playback implementations in the designer interface and the engine, causing this mess.
 	// There is not much point in sending playstart, since playback is relative to playstart_offset, which means we could just have Play(at_pattern_time), Pause(), Resume(), Stop() commands and latency would be ignored the same way it is now.
 	// A lot of this was just to have quick integration with the designer interface, where I wasnt sure exactly what access to playback/evaluation internals would be needed.
 	// If at some point the engine playback code can be packaged into WASM for the designer, this will probably be cleaned up.
+	#[serde(rename="update_playstart")]
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
+
+	/// See [PatternEvaluatorParameters]
 	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },
+
+	/// Enable body tracking for haptic playback
 	#[serde(rename="update_tracking")]
 	Tracking{ enabled: bool },
 
@@ -32,12 +38,12 @@ pub enum PatternEvalUpdate {
 	UserParameter { name: String, value: f64 },
 }
 
-pub enum PatternEvalCall {
+pub(crate) enum PatternEvalCall {
     EvalBatch{ time_arr_instants: Vec<Instant>},
 }
 
 /// if seconds_per_playback_update is true, send playback updates prior to applying tracking translation
-pub fn pattern_eval_loop(
+pub(crate) fn pattern_eval_loop(
 	seconds_per_playback_update: f64,
 	send_untracked_playback_updates: bool,
 	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,

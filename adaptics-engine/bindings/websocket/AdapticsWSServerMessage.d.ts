@@ -5,6 +5,9 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+/**
+ * Messages sent to websocket clients
+ */
 export type AdapticsWSServerMessage =
   | {
       cmd: "playback_update";

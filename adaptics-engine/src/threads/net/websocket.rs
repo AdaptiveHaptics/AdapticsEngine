@@ -9,16 +9,18 @@ use base64::{self, Engine as _};
 
 use crate::{PatternEvalUpdate, threads::tracking};
 
-
+/// Messages sent to websocket clients
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
 pub enum AdapticsWSServerMessage {
+    /// Updates from the pattern evaluator to be sent to websocket/non-hardware clients
     PlaybackUpdate{ evals: Vec<BrushAtAnimLocalTime> },
+    /// Updates from the tracking system to be sent to websocket clients
     TrackingData{ tracking_frame: tracking::TrackingFrame },
 }
 
-pub struct MAHWebsocket {
+pub(crate) struct MAHWebsocket {
     bufread: BufReader<TcpStream>,
     uid: u64,
     _wsrecvjh: std::thread::JoinHandle<()>

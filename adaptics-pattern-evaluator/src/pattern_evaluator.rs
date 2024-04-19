@@ -16,10 +16,15 @@ pub struct PatternEvaluator {
 }
 
 pub type UserParameters = HashMap<String, f64>;
+
+/// Defines the current evaluation in combination with [NextEvalParams]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct PatternEvaluatorParameters {
+    /// The time at which to evaluate the pattern
     pub time: MAHTime,
+    /// The user parameters to use (External Parameters in the Designer)
     pub user_parameters: UserParameters,
+    /// The geometric transform to apply to the pattern
     pub geometric_transform: GeometricTransformMatrix,
 }
 
