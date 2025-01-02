@@ -87,7 +87,7 @@
       }
     },
     "MAHCoordsConst": {
-      "description": "x and y are used for the xy coordinate system in the 2d designer. z is intended to be orthogonal to the phased array",
+      "description": "Coordinates in millimeters.\n\nx and y are used for the xy coordinate system in the 2d designer.\n\nz is intended to be orthogonal to the phased array.",
       "type": "object",
       "required": [
         "x",

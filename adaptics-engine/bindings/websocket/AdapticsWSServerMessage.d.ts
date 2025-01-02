@@ -38,7 +38,11 @@ export interface UltraleapControlPoint {
   intensity: number;
 }
 /**
- * x and y are used for the xy coordinate system in the 2d designer. z is intended to be orthogonal to the phased array
+ * Coordinates in millimeters.
+ *
+ * x and y are used for the xy coordinate system in the 2d designer.
+ *
+ * z is intended to be orthogonal to the phased array.
  */
 export interface MAHCoordsConst {
   /**

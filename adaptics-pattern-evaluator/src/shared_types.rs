@@ -165,8 +165,11 @@ pub struct MAHScaleTuple {
 /// Time in milliseconds
 pub type MAHTime = f64;
 
+/// Coordinates in millimeters.
+///
 /// x and y are used for the xy coordinate system in the 2d designer.
-/// z is intended to be orthogonal to the phased array
+///
+/// z is intended to be orthogonal to the phased array.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
 // #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 // #[ts(export)]
