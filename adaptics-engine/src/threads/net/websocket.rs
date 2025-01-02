@@ -105,9 +105,9 @@ fn parse_ws_frame_header(frame: &[u8]) -> Option<(bool, WsFrameOpcodes, usize, u
     let opcode = (frameb0 & 0b00001111).try_into().unwrap();
     let rawlen = frame[aii()?] & 0b01111111;
     let payload_length = match rawlen {
-        0..=125 => { (rawlen).try_into().unwrap() } // TODO: close ws with error instead of panic
+        0..=125 => { (rawlen).into() } // TODO: close ws with error instead of panic
         126 => {
-            ((frame[aii()?] as u16)<<8 | frame[aii()?] as u16).try_into().unwrap()
+            ((frame[aii()?] as u16)<<8 | frame[aii()?] as u16).into()
         }
         127 => {
             (

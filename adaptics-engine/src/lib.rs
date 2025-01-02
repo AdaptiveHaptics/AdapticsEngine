@@ -49,7 +49,7 @@ use interoptopus::{ffi_function, ffi_type, Inventory, InventoryBuilder, function
 use pattern_evaluator::{BrushAtAnimLocalTime, PatternEvaluator};
 
 
-pub mod threads;
+mod threads;
 use threads::pattern::playback;
 pub use playback::PatternEvalUpdate;
 use threads::streaming;
@@ -57,6 +57,13 @@ use threads::net::websocket;
 pub use websocket::AdapticsWSServerMessage;
 use threads::tracking;
 pub use pattern_evaluator::PatternEvaluatorParameters;
+mod util;
+use util::TLError;
+
+pub mod hapticglove {
+    pub type DeviceType = crate::streaming::hapticglove::DeviceType;
+    pub use crate::streaming::hapticglove::get_possible_serial_ports;
+}
 
 /// The number of seconds between each playback update from the pattern evaluator.
 pub const SECONDS_PER_PLAYBACK_UPDATE: f64 = 1.0 / 60.0;
@@ -66,26 +73,6 @@ const SEND_UNTRACKED_PLAYBACK_UPDATES: bool = false;
 
 const DEBUG_LOG_LAG_EVENTS: bool = true;
 
-
-#[derive(Debug)]
-pub(crate) struct TLError {
-    details: String
-}
-impl TLError {
-    pub(crate) fn new(msg: &str) -> TLError {
-        TLError{ details: msg.to_string() }
-    }
-}
-impl std::fmt::Display for TLError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f,"{}",self.details)
-    }
-}
-impl std::error::Error for TLError {
-    fn description(&self) -> &str {
-        &self.details
-    }
-}
 
 /// Handle to the Adaptics Engine threads and channels.
 pub struct AdapticsEngineHandle {
@@ -99,6 +86,7 @@ pub struct AdapticsEngineHandle {
 fn create_threads(
     use_mock_streaming: bool,
     disable_playback_updates: bool,
+    vib_grid: Option<hapticglove::DeviceType>,
     tracking_data_rx: Option<crossbeam_channel::Receiver<tracking::TrackingFrame>>,
 ) -> AdapticsEngineHandle {
     let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::bounded(1);
@@ -132,7 +120,14 @@ fn create_threads(
         })
         .unwrap();
 
-    let ulh_streaming_handle = if !use_mock_streaming {
+    let ulh_streaming_handle =  if let Some(vg_device) = vib_grid {
+        thread::Builder::new()
+            .name("vib-grid".to_string())
+            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                println!("vib-grid thread starting...");
+                streaming::hapticglove::start_streaming_emitter(&vg_device, patteval_call_tx, patteval_return_rx, end_streaming_rx)
+            }).unwrap()
+    } else if !use_mock_streaming {
         thread::Builder::new()
             .name("ulh-streaming".to_string())
             .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -182,6 +177,7 @@ pub fn run_threads_and_wait(
     use_mock_streaming: bool,
     websocket_bind_addr: Option<String>,
     enable_tracking: bool,
+    vib_grid: Option<hapticglove::DeviceType>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let (tracking_data_tx, tracking_data_rx) = if enable_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
@@ -192,7 +188,7 @@ pub fn run_threads_and_wait(
         patteval_update_tx,
         ulh_streaming_handle,
         playback_updates_rx,
-    } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), tracking_data_rx);
+    } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), vib_grid, tracking_data_rx);
 
     let (net_handle_opt, tracking_data_ws_tx) = if let Some(websocket_bind_addr) = websocket_bind_addr {
         let (tracking_data_ws_tx, tracking_data_ws_rx) = if enable_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
@@ -305,6 +301,37 @@ type HandleID = u64;
 static NEXT_HANDLE_ID: AtomicU64 = AtomicU64::new(0);
 static ENGINE_HANDLE_MAP: RwLock<Option<HashMap<HandleID, AdapticsEngineHandleFFI>>> = RwLock::new(None);
 
+
+/// Initializes the Adaptics Engine, returns a handle ID.
+///
+/// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming.
+///
+/// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
+///
+/// vib_grid: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
+/// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
+///
+#[ffi_function]
+#[no_mangle]
+pub extern "C" fn init_adaptics_engine_experimental(use_mock_streaming: bool, enable_playback_updates: bool, vib_grid: AsciiPointer) -> HandleID {
+    let vg = match vib_grid.as_str() {
+        Ok("auto") => Some(hapticglove::DeviceType::Auto),
+        Ok("") => None,
+        Ok(s) => Some(hapticglove::DeviceType::SerialPort(s.to_string())),
+        Err(interoptopus::Error::Null) => None,
+        Err(interoptopus::Error::UTF8(_)) => None, // should throw
+        Err(_) => None, // should be unreachable
+    };
+    let aeh = create_threads(use_mock_streaming, !enable_playback_updates, vg, None);
+    let ffi_handle = AdapticsEngineHandleFFI::new(aeh);
+    // get map or create new map
+    let mut map = ENGINE_HANDLE_MAP.write().unwrap();
+    let map = map.get_or_insert_with(HashMap::new);
+    let handle_id = NEXT_HANDLE_ID.fetch_add(1, atomic::Ordering::Relaxed);
+    map.insert(handle_id, ffi_handle);
+    handle_id
+}
+
 /// Initializes the Adaptics Engine, returns a handle ID.
 ///
 /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming.
@@ -314,14 +341,7 @@ static ENGINE_HANDLE_MAP: RwLock<Option<HashMap<HandleID, AdapticsEngineHandleFF
 #[ffi_function]
 #[no_mangle]
 pub extern "C" fn init_adaptics_engine(use_mock_streaming: bool, enable_playback_updates: bool) -> HandleID {
-    let aeh = create_threads(use_mock_streaming, !enable_playback_updates, None);
-    let ffi_handle = AdapticsEngineHandleFFI::new(aeh);
-    // get map or create new map
-    let mut map = ENGINE_HANDLE_MAP.write().unwrap();
-    let map = map.get_or_insert_with(HashMap::new);
-    let handle_id = NEXT_HANDLE_ID.fetch_add(1, atomic::Ordering::Relaxed);
-    map.insert(handle_id, ffi_handle);
-    handle_id
+    init_adaptics_engine_experimental(use_mock_streaming, enable_playback_updates, AsciiPointer::empty())
 }
 
 /// Deinitializes the Adaptics Engine.
@@ -590,6 +610,7 @@ pub extern "C" fn ffi_api_guard() -> interoptopus::patterns::api_guard::APIVersi
 #[doc(hidden)]
 pub fn ffi_inventory() -> Inventory {
 	InventoryBuilder::new()
+        .register(function!(init_adaptics_engine_experimental))
         .register(function!(init_adaptics_engine))
         .register(function!(deinit_adaptics_engine))
         .register(function!(adaptics_engine_update_pattern))
