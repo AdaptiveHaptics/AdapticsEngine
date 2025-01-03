@@ -17,40 +17,109 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 12559145612103383281ul)
+            if (api_version != 767469171772763820ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (12559145612103383281). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (767469171772763820). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
 
+        /// Destroys the given instance.
+        ///
+        /// # Safety
+        ///
+        /// The passed parameter MUST have been created with the corresponding init function;
+        /// passing any other value results in undefined behavior.
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_destroy")]
+        public static extern FFIError adaptics_engine_destroy(ref IntPtr context);
+
+        /// Destroys the given instance.
+        ///
+        /// # Safety
+        ///
+        /// The passed parameter MUST have been created with the corresponding init function;
+        /// passing any other value results in undefined behavior.
+        public static void adaptics_engine_destroy_checked(ref IntPtr context)
+        {
+            var rval = adaptics_engine_destroy(ref context);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
         /// Initializes the Adaptics Engine, returns a handle ID.
         ///
-        /// use_mock_streaming: if true, use mock streaming. if false, use ulhaptics streaming.
+        /// `use_mock_streaming`: if true, use mock streaming. if false, use ulhaptics streaming.
         ///
-        /// enable_playback_updates: if true, enable playback updates, adaptics_engine_get_playback_updates expected to be called at (1/SECONDS_PER_PLAYBACK_UPDATE)hz.
+        /// `enable_playback_updates`: if true, enable playback updates, `adaptics_engine_get_playback_updates` expected to be called at (1/`SECONDS_PER_PLAYBACK_UPDATE`)hz.
         ///
-        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "init_adaptics_engine")]
-        public static extern ulong init_adaptics_engine(bool use_mock_streaming, bool enable_playback_updates);
+        /// `vib_grid`: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
+        /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
+        ///
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_init_experimental")]
+        public static extern FFIError adaptics_engine_init_experimental(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates, string vib_grid);
+
+        /// Initializes the Adaptics Engine, returns a handle ID.
+        ///
+        /// `use_mock_streaming`: if true, use mock streaming. if false, use ulhaptics streaming.
+        ///
+        /// `enable_playback_updates`: if true, enable playback updates, `adaptics_engine_get_playback_updates` expected to be called at (1/`SECONDS_PER_PLAYBACK_UPDATE`)hz.
+        ///
+        /// `vib_grid`: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
+        /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
+        ///
+        public static void adaptics_engine_init_experimental_checked(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates, string vib_grid)
+        {
+            var rval = adaptics_engine_init_experimental(ref context, use_mock_streaming, enable_playback_updates, vib_grid);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Initializes the Adaptics Engine, returns a handle ID.
+        ///
+        /// `use_mock_streaming`: if true, use mock streaming. if false, use ulhaptics streaming.
+        ///
+        /// `enable_playback_updates`: if true, enable playback updates, `adaptics_engine_get_playback_updates` expected to be called at (1/`SECONDS_PER_PLAYBACK_UPDATE`)hz.
+        ///
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_init")]
+        public static extern FFIError adaptics_engine_init(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates);
+
+        /// Initializes the Adaptics Engine, returns a handle ID.
+        ///
+        /// `use_mock_streaming`: if true, use mock streaming. if false, use ulhaptics streaming.
+        ///
+        /// `enable_playback_updates`: if true, enable playback updates, `adaptics_engine_get_playback_updates` expected to be called at (1/`SECONDS_PER_PLAYBACK_UPDATE`)hz.
+        ///
+        public static void adaptics_engine_init_checked(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates)
+        {
+            var rval = adaptics_engine_init(ref context, use_mock_streaming, enable_playback_updates);;
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
 
         /// Deinitializes the Adaptics Engine.
         /// Returns with an error message if available.
         ///
-        /// The unity package uses a err_msg buffer of size 1024.
-        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "deinit_adaptics_engine")]
-        public static extern FFIError deinit_adaptics_engine(ulong handle_id, SliceMutu8 err_msg);
+        /// The unity package uses a `err_msg` buffer of size 1024.
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_deinit")]
+        public static extern FFIError adaptics_engine_deinit(IntPtr context, SliceMutu8 err_msg);
 
         /// Deinitializes the Adaptics Engine.
         /// Returns with an error message if available.
         ///
-        /// The unity package uses a err_msg buffer of size 1024.
-        public static void deinit_adaptics_engine(ulong handle_id, byte[] err_msg)
+        /// The unity package uses a `err_msg` buffer of size 1024.
+        public static void adaptics_engine_deinit(IntPtr context, byte[] err_msg)
         {
             var err_msg_pinned = GCHandle.Alloc(err_msg, GCHandleType.Pinned);
             var err_msg_slice = new SliceMutu8(err_msg_pinned, (ulong) err_msg.Length);
             try
             {
-                var rval = deinit_adaptics_engine(handle_id, err_msg_slice);;
+                var rval = adaptics_engine_deinit(context, err_msg_slice);;
                 if (rval != FFIError.Ok)
                 {
                     throw new InteropException<FFIError>(rval);
@@ -63,29 +132,29 @@ namespace com.github.AdaptiveHaptics
         }
 
         /// Updates the pattern to be played.
-        /// For further information, see [PatternEvalUpdate::Pattern].
+        /// For further information, see [`PatternEvalUpdate::Pattern`].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_pattern")]
-        public static extern FFIError adaptics_engine_update_pattern(ulong handle_id, string pattern_json);
+        public static extern FFIError adaptics_engine_update_pattern(IntPtr context, string pattern_json);
 
         /// Updates the pattern to be played.
-        /// For further information, see [PatternEvalUpdate::Pattern].
-        public static void adaptics_engine_update_pattern_checked(ulong handle_id, string pattern_json)
+        /// For further information, see [`PatternEvalUpdate::Pattern`].
+        public static void adaptics_engine_update_pattern_checked(IntPtr context, string pattern_json)
         {
-            var rval = adaptics_engine_update_pattern(handle_id, pattern_json);;
+            var rval = adaptics_engine_update_pattern(context, pattern_json);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
             }
         }
 
-        /// Alias for [crate::adaptics_engine_update_pattern()]
+        /// Alias for [`crate::adaptics_engine_update_pattern()`]
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_tacton")]
-        public static extern FFIError adaptics_engine_update_tacton(ulong handle_id, string pattern_json);
+        public static extern FFIError adaptics_engine_update_tacton(IntPtr context, string pattern_json);
 
-        /// Alias for [crate::adaptics_engine_update_pattern()]
-        public static void adaptics_engine_update_tacton_checked(ulong handle_id, string pattern_json)
+        /// Alias for [`crate::adaptics_engine_update_pattern()`]
+        public static void adaptics_engine_update_tacton_checked(IntPtr context, string pattern_json)
         {
-            var rval = adaptics_engine_update_tacton(handle_id, pattern_json);;
+            var rval = adaptics_engine_update_tacton(context, pattern_json);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -93,41 +162,41 @@ namespace com.github.AdaptiveHaptics
         }
 
         /// Used to start and stop playback.
-        /// For further information, see [PatternEvalUpdate::Playstart].
+        /// For further information, see [`PatternEvalUpdate::Playstart`].
         ///
         /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
-        /// Use [adaptics_engine_update_time()] or [adaptics_engine_update_parameters()] to set the time parameter.
+        /// Use [`adaptics_engine_update_time()`] or [`adaptics_engine_update_parameters()`] to set the time parameter.
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_playstart")]
-        public static extern FFIError adaptics_engine_update_playstart(ulong handle_id, double playstart, double playstart_offset);
+        public static extern FFIError adaptics_engine_update_playstart(IntPtr context, double playstart, double playstart_offset);
 
         /// Used to start and stop playback.
-        /// For further information, see [PatternEvalUpdate::Playstart].
+        /// For further information, see [`PatternEvalUpdate::Playstart`].
         ///
         /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
-        /// Use [adaptics_engine_update_time()] or [adaptics_engine_update_parameters()] to set the time parameter.
-        public static void adaptics_engine_update_playstart_checked(ulong handle_id, double playstart, double playstart_offset)
+        /// Use [`adaptics_engine_update_time()`] or [`adaptics_engine_update_parameters()`] to set the time parameter.
+        public static void adaptics_engine_update_playstart_checked(IntPtr context, double playstart, double playstart_offset)
         {
-            var rval = adaptics_engine_update_playstart(handle_id, playstart, playstart_offset);;
+            var rval = adaptics_engine_update_playstart(context, playstart, playstart_offset);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
             }
         }
 
-        /// Used to update all evaluator_params.
+        /// Used to update all `evaluator_params`.
         ///
-        /// Accepts a JSON string representing the evaluator parameters. See [PatternEvaluatorParameters].
-        /// For further information, see [PatternEvalUpdate::Parameters].
+        /// Accepts a JSON string representing the evaluator parameters. See [`PatternEvaluatorParameters`].
+        /// For further information, see [`PatternEvalUpdate::Parameters`].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_parameters")]
-        public static extern FFIError adaptics_engine_update_parameters(ulong handle_id, string evaluator_params);
+        public static extern FFIError adaptics_engine_update_parameters(IntPtr context, string evaluator_params);
 
-        /// Used to update all evaluator_params.
+        /// Used to update all `evaluator_params`.
         ///
-        /// Accepts a JSON string representing the evaluator parameters. See [PatternEvaluatorParameters].
-        /// For further information, see [PatternEvalUpdate::Parameters].
-        public static void adaptics_engine_update_parameters_checked(ulong handle_id, string evaluator_params)
+        /// Accepts a JSON string representing the evaluator parameters. See [`PatternEvaluatorParameters`].
+        /// For further information, see [`PatternEvalUpdate::Parameters`].
+        public static void adaptics_engine_update_parameters_checked(IntPtr context, string evaluator_params)
         {
-            var rval = adaptics_engine_update_parameters(handle_id, evaluator_params);;
+            var rval = adaptics_engine_update_parameters(context, evaluator_params);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -135,15 +204,15 @@ namespace com.github.AdaptiveHaptics
         }
 
         /// Resets all evaluator parameters to their default values.
-        /// For further information, see [PatternEvalUpdate::Parameters].
+        /// For further information, see [`PatternEvalUpdate::Parameters`].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_reset_parameters")]
-        public static extern FFIError adaptics_engine_reset_parameters(ulong handle_id);
+        public static extern FFIError adaptics_engine_reset_parameters(IntPtr context);
 
         /// Resets all evaluator parameters to their default values.
-        /// For further information, see [PatternEvalUpdate::Parameters].
-        public static void adaptics_engine_reset_parameters_checked(ulong handle_id)
+        /// For further information, see [`PatternEvalUpdate::Parameters`].
+        public static void adaptics_engine_reset_parameters_checked(IntPtr context)
         {
-            var rval = adaptics_engine_reset_parameters(handle_id);;
+            var rval = adaptics_engine_reset_parameters(context);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -158,7 +227,7 @@ namespace com.github.AdaptiveHaptics
         /// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
         /// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_time")]
-        public static extern FFIError adaptics_engine_update_time(ulong handle_id, double time);
+        public static extern FFIError adaptics_engine_update_time(IntPtr context, double time);
 
         /// Updates `evaluator_params.time`.
         ///
@@ -167,9 +236,9 @@ namespace com.github.AdaptiveHaptics
         /// # Notes
         /// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
         /// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
-        public static void adaptics_engine_update_time_checked(ulong handle_id, double time)
+        public static void adaptics_engine_update_time_checked(IntPtr context, double time)
         {
-            var rval = adaptics_engine_update_time(handle_id, time);;
+            var rval = adaptics_engine_update_time(context, time);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -178,16 +247,16 @@ namespace com.github.AdaptiveHaptics
 
         /// Updates all user parameters.
         /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
-        /// For further information, see [PatternEvalUpdate::UserParameters].
+        /// For further information, see [`PatternEvalUpdate::UserParameters`].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_user_parameters")]
-        public static extern FFIError adaptics_engine_update_user_parameters(ulong handle_id, string user_parameters);
+        public static extern FFIError adaptics_engine_update_user_parameters(IntPtr context, string user_parameters);
 
         /// Updates all user parameters.
         /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
-        /// For further information, see [PatternEvalUpdate::UserParameters].
-        public static void adaptics_engine_update_user_parameters_checked(ulong handle_id, string user_parameters)
+        /// For further information, see [`PatternEvalUpdate::UserParameters`].
+        public static void adaptics_engine_update_user_parameters_checked(IntPtr context, string user_parameters)
         {
-            var rval = adaptics_engine_update_user_parameters(handle_id, user_parameters);;
+            var rval = adaptics_engine_update_user_parameters(context, user_parameters);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -196,16 +265,16 @@ namespace com.github.AdaptiveHaptics
 
         /// Updates a single user parameter.
         /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
-        /// For further information, see [PatternEvalUpdate::UserParameters].
+        /// For further information, see [`PatternEvalUpdate::UserParameters`].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_user_parameter")]
-        public static extern FFIError adaptics_engine_update_user_parameter(ulong handle_id, string name, double value);
+        public static extern FFIError adaptics_engine_update_user_parameter(IntPtr context, string name, double value);
 
         /// Updates a single user parameter.
         /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
-        /// For further information, see [PatternEvalUpdate::UserParameters].
-        public static void adaptics_engine_update_user_parameter_checked(ulong handle_id, string name, double value)
+        /// For further information, see [`PatternEvalUpdate::UserParameters`].
+        public static void adaptics_engine_update_user_parameter_checked(IntPtr context, string name, double value)
         {
-            var rval = adaptics_engine_update_user_parameter(handle_id, name, value);;
+            var rval = adaptics_engine_update_user_parameter(context, name, value);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -213,41 +282,45 @@ namespace com.github.AdaptiveHaptics
         }
 
         /// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
-        /// For further information, see [PatternEvalUpdate::GeoTransformMatrix].
+        /// For further information, see [`PatternEvalUpdate::GeoTransformMatrix`].
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_update_geo_transform_matrix")]
-        public static extern FFIError adaptics_engine_update_geo_transform_matrix(ulong handle_id, GeoMatrix geo_matrix);
+        public static extern FFIError adaptics_engine_update_geo_transform_matrix(IntPtr context, ref GeoMatrix geo_matrix);
 
         /// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
-        /// For further information, see [PatternEvalUpdate::GeoTransformMatrix].
-        public static void adaptics_engine_update_geo_transform_matrix_checked(ulong handle_id, GeoMatrix geo_matrix)
+        /// For further information, see [`PatternEvalUpdate::GeoTransformMatrix`].
+        public static void adaptics_engine_update_geo_transform_matrix_checked(IntPtr context, ref GeoMatrix geo_matrix)
         {
-            var rval = adaptics_engine_update_geo_transform_matrix(handle_id, geo_matrix);;
+            var rval = adaptics_engine_update_geo_transform_matrix(context, ref geo_matrix);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
             }
         }
 
+        /// Actually Unsafe! This function is marked as unsafe because it dereferences a raw pointer.
+        ///
         /// Populate `eval_results` with the latest evaluation results.
         /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
         ///
         /// # Safety
         /// `num_evals` must be a valid pointer to a u32
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_get_playback_updates")]
-        public static extern FFIError adaptics_engine_get_playback_updates(ulong handle_id, ref SliceMutUnityEvalResult eval_results, out uint num_evals);
+        public static extern FFIError adaptics_engine_get_playback_updates(IntPtr context, ref SliceMutUnityEvalResult eval_results, out uint num_evals);
 
+        /// Actually Unsafe! This function is marked as unsafe because it dereferences a raw pointer.
+        ///
         /// Populate `eval_results` with the latest evaluation results.
         /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
         ///
         /// # Safety
         /// `num_evals` must be a valid pointer to a u32
-        public static void adaptics_engine_get_playback_updates(ulong handle_id, UnityEvalResult[] eval_results, out uint num_evals)
+        public static void adaptics_engine_get_playback_updates(IntPtr context, UnityEvalResult[] eval_results, out uint num_evals)
         {
             var eval_results_pinned = GCHandle.Alloc(eval_results, GCHandleType.Pinned);
             var eval_results_slice = new SliceMutUnityEvalResult(eval_results_pinned, (ulong) eval_results.Length);
             try
             {
-                var rval = adaptics_engine_get_playback_updates(handle_id, ref eval_results_slice, out num_evals);;
+                var rval = adaptics_engine_get_playback_updates(context, ref eval_results_slice, out num_evals);;
                 if (rval != FFIError.Ok)
                 {
                     throw new InteropException<FFIError>(rval);
@@ -260,13 +333,13 @@ namespace com.github.AdaptiveHaptics
         }
 
         /// Higher level function to load a new pattern and instantly start playback.
-        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_play_tacton_immediate")]
-        public static extern FFIError adaptics_engine_play_tacton_immediate(ulong handle_id, string tacton_json);
+        [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_adaptics_engine_play_tacton_immediate")]
+        public static extern FFIError adaptics_engine_adaptics_engine_play_tacton_immediate(IntPtr context, string tacton_json);
 
         /// Higher level function to load a new pattern and instantly start playback.
-        public static void adaptics_engine_play_tacton_immediate_checked(ulong handle_id, string tacton_json)
+        public static void adaptics_engine_adaptics_engine_play_tacton_immediate_checked(IntPtr context, string tacton_json)
         {
-            var rval = adaptics_engine_play_tacton_immediate(handle_id, tacton_json);;
+            var rval = adaptics_engine_adaptics_engine_play_tacton_immediate(context, tacton_json);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -276,7 +349,7 @@ namespace com.github.AdaptiveHaptics
         /// Guard function used by bindings.
         ///
         /// Change impl version in this comment to force bump the API version.
-        /// impl_version: 1
+        /// `impl_version`: 1
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "ffi_api_guard")]
         public static extern ulong ffi_api_guard();
 
@@ -337,8 +410,16 @@ namespace com.github.AdaptiveHaptics
         AdapticsEngineThreadDisconnectedCheckDeinitForMoreInfo = 4,
         ErrMsgProvided = 5,
         EnablePlaybackUpdatesWasFalse = 6,
-        ParameterJSONDeserializationFailed = 8,
+        ParamJSONDeserializationFailed = 8,
         HandleIDNotFound = 9,
+        ParamUTF8Error = 10,
+        MutexPoisoned = 11,
+        ParamAsciiError = 12,
+        InteropUnsupported = 13,
+        InteropFormatError = 14,
+        InteropUnkError = 15,
+        TimeError = 16,
+        CastError = 17,
     }
 
     ///A pointer to an array of data someone else owns which may be modified.
@@ -472,6 +553,232 @@ namespace com.github.AdaptiveHaptics
         }
     }
 
+
+
+    public partial class FFIHandle : IDisposable
+    {
+        private IntPtr _context;
+
+        private FFIHandle() {}
+
+        /// Initializes the Adaptics Engine, returns a handle ID.
+        ///
+        /// `use_mock_streaming`: if true, use mock streaming. if false, use ulhaptics streaming.
+        ///
+        /// `enable_playback_updates`: if true, enable playback updates, `adaptics_engine_get_playback_updates` expected to be called at (1/`SECONDS_PER_PLAYBACK_UPDATE`)hz.
+        ///
+        /// `vib_grid`: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
+        /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
+        ///
+        public static FFIHandle InitExperimental(bool use_mock_streaming, bool enable_playback_updates, string vib_grid)
+        {
+            var self = new FFIHandle();
+            var rval = AdapticsEngineInterop.adaptics_engine_init_experimental(ref self._context, use_mock_streaming, enable_playback_updates, vib_grid);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+            return self;
+        }
+
+        /// Initializes the Adaptics Engine, returns a handle ID.
+        ///
+        /// `use_mock_streaming`: if true, use mock streaming. if false, use ulhaptics streaming.
+        ///
+        /// `enable_playback_updates`: if true, enable playback updates, `adaptics_engine_get_playback_updates` expected to be called at (1/`SECONDS_PER_PLAYBACK_UPDATE`)hz.
+        ///
+        public static FFIHandle Init(bool use_mock_streaming, bool enable_playback_updates)
+        {
+            var self = new FFIHandle();
+            var rval = AdapticsEngineInterop.adaptics_engine_init(ref self._context, use_mock_streaming, enable_playback_updates);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+            return self;
+        }
+
+        public void Dispose()
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_destroy(ref _context);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Deinitializes the Adaptics Engine.
+        /// Returns with an error message if available.
+        ///
+        /// The unity package uses a `err_msg` buffer of size 1024.
+        public void Deinit(SliceMutu8 err_msg)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_deinit(_context, err_msg);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Deinitializes the Adaptics Engine.
+        /// Returns with an error message if available.
+        ///
+        /// The unity package uses a `err_msg` buffer of size 1024.
+        public void Deinit(byte[] err_msg)
+        {
+            AdapticsEngineInterop.adaptics_engine_deinit(_context, err_msg);
+        }
+
+        /// Updates the pattern to be played.
+        /// For further information, see [`PatternEvalUpdate::Pattern`].
+        public void UpdatePattern(string pattern_json)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_pattern(_context, pattern_json);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Alias for [`crate::adaptics_engine_update_pattern()`]
+        public void UpdateTacton(string pattern_json)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_tacton(_context, pattern_json);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Used to start and stop playback.
+        /// For further information, see [`PatternEvalUpdate::Playstart`].
+        ///
+        /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+        /// Use [`adaptics_engine_update_time()`] or [`adaptics_engine_update_parameters()`] to set the time parameter.
+        public void UpdatePlaystart(double playstart, double playstart_offset)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_playstart(_context, playstart, playstart_offset);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Used to update all `evaluator_params`.
+        ///
+        /// Accepts a JSON string representing the evaluator parameters. See [`PatternEvaluatorParameters`].
+        /// For further information, see [`PatternEvalUpdate::Parameters`].
+        public void UpdateParameters(string evaluator_params)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_parameters(_context, evaluator_params);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Resets all evaluator parameters to their default values.
+        /// For further information, see [`PatternEvalUpdate::Parameters`].
+        public void ResetParameters()
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_reset_parameters(_context);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Updates `evaluator_params.time`.
+        ///
+        /// To correctly start in the middle of a pattern, ensure that the time parameter is set appropriately before initiating playback.
+        ///
+        /// # Notes
+        /// - `evaluator_params.time` will be overwritten by the playstart time computation during playback.
+        /// - Setting `evaluator_params.time` will not cause any pattern evaluation to occur (no playback updates).
+        public void UpdateTime(double time)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_time(_context, time);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Updates all user parameters.
+        /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+        /// For further information, see [`PatternEvalUpdate::UserParameters`].
+        public void UpdateUserParameters(string user_parameters)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_user_parameters(_context, user_parameters);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Updates a single user parameter.
+        /// Accepts a JSON string of user parameters in the format `{ [key: string]: double }`.
+        /// For further information, see [`PatternEvalUpdate::UserParameters`].
+        public void UpdateUserParameter(string name, double value)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_user_parameter(_context, name, value);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Updates `geo_matrix`, a 4x4 matrix in row-major order, where `data[3]` is the fourth element of the first row (translate x).
+        /// For further information, see [`PatternEvalUpdate::GeoTransformMatrix`].
+        public void UpdateGeoTransformMatrix(ref GeoMatrix geo_matrix)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_update_geo_transform_matrix(_context, ref geo_matrix);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Actually Unsafe! This function is marked as unsafe because it dereferences a raw pointer.
+        ///
+        /// Populate `eval_results` with the latest evaluation results.
+        /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
+        ///
+        /// # Safety
+        /// `num_evals` must be a valid pointer to a u32
+        public void GetPlaybackUpdates(ref SliceMutUnityEvalResult eval_results, out uint num_evals)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_get_playback_updates(_context, ref eval_results, out num_evals);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        /// Actually Unsafe! This function is marked as unsafe because it dereferences a raw pointer.
+        ///
+        /// Populate `eval_results` with the latest evaluation results.
+        /// `num_evals` will be set to the number of evaluations written to `eval_results`, or 0 if there are no new evaluations since the last call to this function.
+        ///
+        /// # Safety
+        /// `num_evals` must be a valid pointer to a u32
+        public void GetPlaybackUpdates(UnityEvalResult[] eval_results, out uint num_evals)
+        {
+            AdapticsEngineInterop.adaptics_engine_get_playback_updates(_context, eval_results, out num_evals);
+        }
+
+        /// Higher level function to load a new pattern and instantly start playback.
+        public void PlayTactonImmediate(string tacton_json)
+        {
+            var rval = AdapticsEngineInterop.adaptics_engine_adaptics_engine_play_tacton_immediate(_context, tacton_json);
+            if (rval != FFIError.Ok)
+            {
+                throw new InteropException<FFIError>(rval);
+            }
+        }
+
+        public IntPtr Context => _context;
+    }
 
 
 

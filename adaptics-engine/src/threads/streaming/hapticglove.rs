@@ -10,6 +10,8 @@ pub const USE_THREAD_SLEEP: Option<u64> = Some(500); // spin_sleeper still needs
 
 pub const SAMPLE_RATE: u64 = 1000; // 1000hz
 pub const CALLBACK_RATE: f64 = 100.0; // 100hz
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub const SAMPLES_PER_CALLBACK: usize = (SAMPLE_RATE as f64 / CALLBACK_RATE) as usize;
 
 pub enum DeviceType {
 	SerialPort(String),
@@ -17,15 +19,16 @@ pub enum DeviceType {
 	Auto,
 }
 
+#[must_use]
 pub fn get_possible_serial_ports() -> Vec<serialport::SerialPortInfo> {
 	glovedriver::GloveDriver::get_possible_serial_ports()
 }
 
 pub fn start_streaming_emitter(
 	device_type: &DeviceType,
-	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
-	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
-	end_streaming_rx: crossbeam_channel::Receiver<()>,
+	patteval_call_tx: &crossbeam_channel::Sender<PatternEvalCall>,
+	patteval_return_rx: &crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
+	end_streaming_rx: &crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 	let device_tick_dur = Duration::from_nanos(1_000_000_000/SAMPLE_RATE);
@@ -57,12 +60,12 @@ pub fn start_streaming_emitter(
 
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
-		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {:?} > {:?}", elapsed, ecallback_tick_dur); }
+		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {elapsed:?} > {ecallback_tick_dur:?}"); }
 		last_tick = curr_time;
 
 		let deadline_time = curr_time + deadline_offset;
 
-		let mut time_arr_instants = Vec::with_capacity((SAMPLE_RATE as f64 / CALLBACK_RATE) as usize + 2);
+		let mut time_arr_instants = Vec::with_capacity(SAMPLES_PER_CALLBACK + 2);
 		let mut future_device_tick_instant = deadline_time;
 		while future_device_tick_instant < (deadline_time + ecallback_tick_dur) {
 			time_arr_instants.push(future_device_tick_instant);
@@ -80,9 +83,9 @@ pub fn start_streaming_emitter(
 
 		// both are needed because durations are always positive and subtraction saturates
 		let deadline_remaining = deadline_time - Instant::now();
-		let deadline_missed_by = Instant::now() - deadline_time;
+		let deadline_missed_by = deadline_time.elapsed();
 		if deadline_remaining.is_zero() {
-			eprintln!("missed deadline by {:?}", deadline_missed_by);
+			eprintln!("missed deadline by {deadline_missed_by:?}");
 		}
 	}
 

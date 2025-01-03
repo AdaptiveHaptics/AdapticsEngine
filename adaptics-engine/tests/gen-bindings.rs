@@ -50,8 +50,6 @@ fn bindings_c(path: &Path) {
 #    define ADAPTICS_EXPORT
 #  endif
 #endif
-
-typedef uint64_t AdapticsHandle;
 		"###.to_string(),
 		function_attribute: "ADAPTICS_EXPORT ".to_string(),
 		prefix: "adaptics_engine_".to_string(),

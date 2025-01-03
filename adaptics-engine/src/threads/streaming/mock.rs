@@ -10,9 +10,9 @@ pub const USE_THREAD_SLEEP: Option<u64> = Some(500); // spin_sleeper still needs
 pub fn start_mock_emitter(
 	device_update_rate: u64,
 	callback_rate: f64,
-	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
-	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
-	end_streaming_rx: crossbeam_channel::Receiver<()>,
+	patteval_call_tx: &crossbeam_channel::Sender<PatternEvalCall>,
+	patteval_return_rx: &crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
+	end_streaming_rx: &crossbeam_channel::Receiver<()>,
 ) {
 	// println!("setting thread priority max");
 	// thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
@@ -40,11 +40,12 @@ pub fn start_mock_emitter(
 
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
-		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {:?} > {:?}", elapsed, ecallback_tick_dur); }
+		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {elapsed:?} > {ecallback_tick_dur:?}"); }
 		last_tick = curr_time;
 
 		let deadline_time = curr_time + deadline_offset;
 
+		#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
 		let mut time_arr_instants = Vec::with_capacity((device_update_rate as f64 / callback_rate) as usize + 2);
 		let mut future_device_tick_instant = deadline_time;
 		while future_device_tick_instant < (deadline_time + ecallback_tick_dur) {
@@ -68,9 +69,9 @@ pub fn start_mock_emitter(
 
 		// both are needed because durations are always positive and subtraction saturates
 		let deadline_remaining = deadline_time - Instant::now();
-		let deadline_missed_by = Instant::now() - deadline_time;
+		let deadline_missed_by = deadline_time.elapsed();
 		if deadline_remaining.is_zero() {
-			eprintln!("missed deadline by {:?}", deadline_missed_by);
+			eprintln!("missed deadline by {deadline_missed_by:?}");
 		}
 	}
 

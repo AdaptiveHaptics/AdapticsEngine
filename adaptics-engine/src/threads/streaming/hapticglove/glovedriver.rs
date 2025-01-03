@@ -73,7 +73,7 @@ impl GloveDriver {
 		let ports = serialport::available_ports().unwrap();
 		// could filter by p.port_type == SerialPortType::UsbPort
 		for p in &ports {
-			println!("serial port: {:?}", p);
+			println!("serial port: {p:?}");
 		}
 		ports
 	}
@@ -85,7 +85,7 @@ impl GloveDriver {
 		GloveDriver::new(Box::new(MockIO {}), lra_layout)
 	}
 	pub fn new_for_serial_port(port: &str, lra_layout: LRALayout) -> std::io::Result<Self> {
-		let port = serialport::new(port, 115200).open()?;
+		let port = serialport::new(port, 115_200).open()?;
 		let io_port: Box<dyn IoPort> = Box::new(port);
 		Ok(GloveDriver::new(io_port, lra_layout))
 	}
@@ -93,7 +93,7 @@ impl GloveDriver {
 		let ports = serialport::available_ports()?;
 		match ports.iter().find(|p| matches!(p.port_type, serialport::SerialPortType::UsbPort(_))) {
 			Some(p) => {
-				println!("INFO: Auto-detected serial port: {:?}", p);
+				println!("INFO: Auto-detected serial port: {p:?}");
 				GloveDriver::new_for_serial_port(&p.port_name, lra_layout)
 			},
 			None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No serial ports found"))
@@ -101,7 +101,7 @@ impl GloveDriver {
 	}
 
 
-	pub fn set_driver_amplitudes(&mut self, driver_amplitudes: DriverAmplitudes) -> std::io::Result<()> {
+	pub fn set_driver_amplitudes(&mut self, driver_amplitudes: &DriverAmplitudes) -> std::io::Result<()> {
 		self.tx_buf.clear();
 		self.tx_buf.push(COBS_DELIM);
 		self.tx_buf.extend_from_slice(driver_amplitudes.get_slice());
@@ -112,7 +112,7 @@ impl GloveDriver {
 		for i in (0..self.tx_buf.len()-1).rev() {
 			let sym = self.tx_buf[i];
 			if sym == COBS_DELIM {
-				self.tx_buf[i] = last_delim_dist as u8;
+				self.tx_buf[i] = u8::try_from(last_delim_dist).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Message too long for COBS")))?;
 				last_delim_dist = 1;
 			} else {
 				last_delim_dist += 1;
@@ -133,10 +133,11 @@ impl GloveDriver {
 			for (i, lra) in self.lra_layout.iter().enumerate() {
 				let dist = ((coords.x - lra.x).powi(2) + (coords.y - lra.y).powi(2)).sqrt(); // ignore z coord
 				let x = dist / MAX_DIST; // at 30 mm func evals to 0. Ease in-out, so 99% at 5mm, 90% at 10mm, 10% at 22mm, 1% at ~25mm
-				let y = x.mul_add((-x * x) * x, 1.0).powi(7); // ease in-out 4th, 7th power
+				let y = x.mul_add((-x * x) * x, 1.0).powi(7); // ease in-out 4th, 7th power: f[dist, MAX_DIST, 4] where f[x_, r_, s_] := (1 - (x/r)^s)^7
 				let driver_amp = y.clamp(0.0, 1.0) * intensity;
 
-				driver_amplitudes[i] = driver_amplitudes[i].max((driver_amp.clamp(0.0, 1.0) * 255.0) as u8);
+				#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+				{ driver_amplitudes[i] = driver_amplitudes[i].max((driver_amp.clamp(0.0, 1.0) * 255.0) as u8); }
 			}
 		}
 		DriverAmplitudes(driver_amplitudes)
@@ -144,7 +145,7 @@ impl GloveDriver {
 
 	pub fn apply_batch(&mut self, brush_evals: &[pattern_evaluator::BrushAtAnimLocalTime]) -> std::io::Result<()> {
 		let driver_amplitudes = self.calc_driver_amplitudes_from_brush_evals(brush_evals);
-		self.set_driver_amplitudes(driver_amplitudes)
+		self.set_driver_amplitudes(&driver_amplitudes)
 	}
 }
 
@@ -162,20 +163,19 @@ use super::*;
 		b: u8,
 	}
 	impl IBColor {
-		pub fn new(r: u8, g: u8, b: u8) -> Self {
-			IBColor { r, g, b }
-		}
 		pub fn new_hex(hex: u32) -> Self {
 			IBColor { r: ((hex >> 16) & 0xFF) as u8, g: ((hex >> 8) & 0xFF) as u8, b: (hex & 0xFF) as u8 }
 		}
+		#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 		pub fn scale(&self, s: f64) -> Self {
-			IBColor { r: (self.r as f64 * s) as u8, g: (self.g as f64 * s) as u8, b: (self.b as f64 * s) as u8 }
+			IBColor { r: (f64::from(self.r) * s) as u8, g: (f64::from(self.g) * s) as u8, b: (f64::from(self.b) * s) as u8 }
 		}
 	}
 	struct ImageBuffer {
 		size: (usize, usize),
 		data: Vec<u8>,
 	}
+	#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
 	impl ImageBuffer {
 		pub fn new(size: (usize, usize)) -> Self {
 			ImageBuffer { size, data: vec![0; size.0 * size.1 * 3] }
@@ -189,20 +189,21 @@ use super::*;
 			(y * self.size.0 + x) * 3
 		}
 
-		fn set_pixel(&mut self, x: usize, y: usize, c: IBColor) {
+		#[allow(dead_code)]
+		fn set_pixel(&mut self, x: usize, y: usize, c: &IBColor) {
 			let idx = self.xy_to_idx(x, y);
-			self.data[idx+0] = c.r;
+			self.data[idx  ] = c.r;
 			self.data[idx+1] = c.g;
 			self.data[idx+2] = c.b;
 		}
-		fn add_pixel(&mut self, x: usize, y: usize, c: IBColor) {
+		fn add_pixel(&mut self, x: usize, y: usize, c: &IBColor) {
 			let idx = self.xy_to_idx(x, y);
-			self.data[idx+0] = self.data[idx+0].saturating_add(c.r);
+			self.data[idx  ] = self.data[idx  ].saturating_add(c.r);
 			self.data[idx+1] = self.data[idx+1].saturating_add(c.g);
 			self.data[idx+2] = self.data[idx+2].saturating_add(c.b);
 		}
 
-		fn render_brush_aa(&mut self, x: f64, y: f64, radius: f64, c: IBColor) {
+		fn render_brush_aa(&mut self, x: f64, y: f64, radius: f64, c: &IBColor) {
 			let x0 = (x - radius).floor().max(0.0).min(self.size.0 as f64 - 1.0) as usize;
 			let x1 = (x + radius).floor().max(0.0).min(self.size.0 as f64 - 1.0) as usize;
 			let y0 = (y - radius).floor().max(0.0).min(self.size.1 as f64 - 1.0) as usize;
@@ -213,13 +214,13 @@ use super::*;
 					let dist = ((xp as f64 - x).powi(2) + (yp as f64 - y).powi(2)).sqrt();
 					let alpha = 1.0 - dist / radius;
 					if alpha > 0.0 {
-						self.add_pixel(xp, yp, c.scale(alpha));
+						self.add_pixel(xp, yp, &c.scale(alpha));
 					}
 				}
 			}
 		}
 
-		pub fn render_brush_aa_mahcoords(&mut self, coords: &MAHCoordsConst, radius: f64, c: IBColor) {
+		pub fn render_brush_aa_mahcoords(&mut self, coords: &MAHCoordsConst, radius: f64, c: &IBColor) {
 			let x = (coords.x + 100.0) / 220.0 * self.size.0 as f64;
 			let y = (1.0 - (coords.y + 100.0) / 220.0) * self.size.1 as f64;
 			self.render_brush_aa(x, y, radius, c);
@@ -227,6 +228,7 @@ use super::*;
 
 	}
 
+	#[allow(clippy::unreadable_literal, clippy::cast_precision_loss)]
 	#[test]
 	#[ignore = "debug, creates video output"]
 	fn debug_test_calc_driver_amplitudes_from_brush_evals() {
@@ -243,8 +245,8 @@ use super::*;
 			.args([
 				"-f", "rawvideo",
 				"-pixel_format", "rgb24",
-				"-video_size", &format!("{}x{}", image_size, image_size),
-				"-framerate", &format!("{}", frame_rate),
+				"-video_size", &format!("{image_size}x{image_size}"),
+				"-framerate", &format!("{frame_rate}"),
 				"-i", "pipe:0", // Read from stdin
 				"-c:v", "libx264",
 				"hapticglove-driver.debug-test-output.mp4",
@@ -259,7 +261,7 @@ use super::*;
 
 		image_buffer.clear();
 		for i in 0..NUM_DRIVERS {
-			image_buffer.render_brush_aa_mahcoords(&gd.lra_layout[i], 10.0, IBColor::new_hex(0x808080));
+			image_buffer.render_brush_aa_mahcoords(&gd.lra_layout[i], 10.0, &IBColor::new_hex(0x808080));
 		}
 		ffmpeg_stdin.write_all(&image_buffer.data).unwrap();
 
@@ -272,7 +274,7 @@ use super::*;
 		for i in 0..num_frames {
 			let mut brush_evals = Vec::with_capacity(samples_per_frame);
 			for o in 0..samples_per_frame {
-				let t = i as f64 * (1000.0 / frame_rate as f64) + o as f64 * (1000.0 / sample_rate as f64);
+				let t = f64::from(i) * (1000.0 / frame_rate as f64) + o as f64 * (1000.0 / sample_rate as f64);
 				params.time = t;
 				let eval = pattern_evaluator.eval_brush_at_anim_local_time(&params, &next_eval_params);
 				next_eval_params = eval.next_eval_params.clone();
@@ -283,11 +285,11 @@ use super::*;
 			image_buffer.clear();
 
 			for be in &brush_evals {
-				image_buffer.render_brush_aa_mahcoords(&be.ul_control_point.coords, 10.0, IBColor::new_hex(0x007eee));
+				image_buffer.render_brush_aa_mahcoords(&be.ul_control_point.coords, 10.0, &IBColor::new_hex(0x007eee));
 			}
 
 			for i in 0..NUM_DRIVERS {
-				image_buffer.render_brush_aa_mahcoords(&gd.lra_layout[i], 10.0, IBColor::new_hex(0xFFFFFF).scale(driver_amplitudes.0[i] as f64 / 255.0 * 0.8 + 0.2));
+				image_buffer.render_brush_aa_mahcoords(&gd.lra_layout[i], 10.0, &IBColor::new_hex(0xFFFFFF).scale(f64::from(driver_amplitudes.0[i]) / 255.0 * 0.8 + 0.2));
 			}
 
 			ffmpeg_stdin.write_all(&image_buffer.data).unwrap();

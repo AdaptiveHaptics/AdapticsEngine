@@ -1,4 +1,3 @@
-use core::panic;
 use std::{io::prelude::*, sync::{Arc, Mutex}, time::Duration, net::TcpListener};
 use std::{io::BufReader, net::TcpStream};
 use pattern_evaluator::BrushAtAnimLocalTime;
@@ -65,19 +64,20 @@ fn create_ws_frame(opcode: WsFrameOpcodes, payload: &[u8]) -> Vec<u8> {
     // println!("{:#?}=={:#b}, {:#?}", opcode, opcode as u8, payload.len());
     let payloadlen = payload.len();
     let mut frame: Vec<u8> = Vec::with_capacity(16+payloadlen);
-    frame.push(0b10000000 | (opcode as u8)); //set FIN=0 RSV=0 opcode
+    frame.push(0b1000_0000 | (opcode as u8)); //set FIN=0 RSV=0 opcode
+    #[allow(clippy::cast_possible_truncation)]
     { //payload length
         match payloadlen { //MASK is always false
             0..=125 => {
                 frame.push(payloadlen as u8);
             }
             126..=65535 => {
-                frame.push(0b01111110);
+                frame.push(0b0111_1110);
                 frame.push((payloadlen>>8) as u8);
                 frame.push(payloadlen as u8);
             }
-            65536..=9223372036854775807 => {
-                frame.push(0b01111111);
+            65536..=9_223_372_036_854_775_807 => {
+                frame.push(0b0111_1111);
                 frame.push((payloadlen>>56) as u8);
                 frame.push((payloadlen>>48) as u8);
                 frame.push((payloadlen>>40) as u8);
@@ -94,31 +94,31 @@ fn create_ws_frame(opcode: WsFrameOpcodes, payload: &[u8]) -> Vec<u8> {
     // println!("{:?}", frame);
     frame
 }
-/// returns (fin (see rfc6455#section-5.2), opcode, payload_length, payload_start_index)
+/// returns (`fin` (see rfc6455#section-5.2), `opcode`, `payload_length`, `payload_start_index`)
 fn parse_ws_frame_header(frame: &[u8]) -> Option<(bool, WsFrameOpcodes, usize, usize, [u8; 4])> {
     let mut i_aii = 0;
     let framelen = frame.len();
     let mut aii = || {let oi=i_aii; i_aii+=1; if oi<framelen {Some(oi)} else {None} };
 
     let frameb0 = frame[aii()?];
-    let fin = (frameb0 & 0b10000000) > 0;
-    let opcode = (frameb0 & 0b00001111).try_into().unwrap();
-    let rawlen = frame[aii()?] & 0b01111111;
+    let fin = (frameb0 & 0b1000_0000) > 0;
+    let opcode = (frameb0 & 0b0000_1111).try_into().unwrap();
+    let rawlen = frame[aii()?] & 0b0111_1111;
     let payload_length = match rawlen {
         0..=125 => { (rawlen).into() } // TODO: close ws with error instead of panic
         126 => {
-            ((frame[aii()?] as u16)<<8 | frame[aii()?] as u16).into()
+            (u16::from(frame[aii()?])<<8 | u16::from(frame[aii()?])).into()
         }
         127 => {
             (
-                (frame[aii()?] as u64)<<56 |
-                (frame[aii()?] as u64)<<48 |
-                (frame[aii()?] as u64)<<40 |
-                (frame[aii()?] as u64)<<32 |
-                (frame[aii()?] as u64)<<24 |
-                (frame[aii()?] as u64)<<16 |
-                (frame[aii()?] as u64)<<8 |
-                 frame[aii()?] as u64
+                u64::from(frame[aii()?])<<56 |
+                u64::from(frame[aii()?])<<48 |
+                u64::from(frame[aii()?])<<40 |
+                u64::from(frame[aii()?])<<32 |
+                u64::from(frame[aii()?])<<24 |
+                u64::from(frame[aii()?])<<16 |
+                u64::from(frame[aii()?])<<8  |
+                u64::from(frame[aii()?])
             ).try_into().unwrap() // TODO: close ws with error instead of panic
         }
         _ => unreachable!()
@@ -167,7 +167,7 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
     bufread.get_mut().flush().unwrap();
 
     let uid = rand::random();
-    println!("starting ws\t'{:#X}'", uid);
+    println!("starting ws\t'{uid:#X}'");
 
     let wsrecvjh = {
         let wsclients = wsclients.clone();
@@ -181,13 +181,20 @@ fn handle_websocket(mut bufread: BufReader<TcpStream>, mut buf: String, wsclient
                 // println!("peeked {} bytes", bytes_peeked);
                 if let Some((bytes_read, wsfr)) = parse_ws_frame_full(&wsframebuf[0..bytes_peeked]) {
                     tcpstream.read_exact(&mut wsframebuf[0..bytes_read]).unwrap(); //consume bytes
-                    if !wsfr.fin { panic!("Not yet implemented"); }
+                    // assert!(wsfr.fin, "fragmented frames (fin=false) not yet implemented");
+                    if !wsfr.fin {
+                        eprintln!("fragmented frames (fin=false) not yet implemented, ignoring...");
+                        continue;
+                    }
                     match wsfr.opcode {
-                        WsFrameOpcodes::Continuation => {}
+                        WsFrameOpcodes::Continuation => {
+                            eprintln!("continuation frames not yet implemented, ignoring...");
+                            continue;
+                        }
                         WsFrameOpcodes::Text => patteval_update_tx.send(serde_json::from_slice(&wsfr.payload).unwrap()).unwrap(),
                         WsFrameOpcodes::Binary => todo!("binary ws frames"),
                         WsFrameOpcodes::Close => {
-                            println!("closing ws\t'{:#X}'", uid);
+                            println!("closing ws\t'{uid:#X}'");
                             let mut wsclients = wsclients.lock().unwrap();
                             wsclients.retain(|pwso| pwso.uid != uid);
                             if wsclients.len() == 0 {
@@ -217,7 +224,7 @@ fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &Ada
     {
         for i in 0..len {
             if let Err(e) = wsclients[i].send(msg) {
-                println!("removing wsclient: {} for {}", i, e);
+                println!("removing wsclient: {i} for {e}");
                 del += 1;
             } else if del > 0 {
                 wsclients.swap(i - del, i);
@@ -230,9 +237,9 @@ fn loop_through_send_removing_fails(wsclients: &mut Vec<MAHWebsocket>, msg: &Ada
 }
 
 fn websocket_dispatcher_loop_thread(
-    wsclients: Arc<Mutex<Vec<MAHWebsocket>>>,
-    playback_updates_rx: crossbeam_channel::Receiver<AdapticsWSServerMessage>,
-    tracking_data_ws_rx: Option<crossbeam_channel::Receiver<AdapticsWSServerMessage>>,
+    wsclients: &Arc<Mutex<Vec<MAHWebsocket>>>,
+    playback_updates_rx: &crossbeam_channel::Receiver<AdapticsWSServerMessage>,
+    tracking_data_ws_rx: Option<&crossbeam_channel::Receiver<AdapticsWSServerMessage>>,
 ) {
     while let Ok(msg) =
         if let Some(tracking_data_ws_rx) = tracking_data_ws_rx.as_ref() {
@@ -252,14 +259,14 @@ fn websocket_dispatcher_loop_thread(
 
 pub fn start_ws_server(
     websocket_server_addr: &str,
-    patteval_update_tx: crossbeam_channel::Sender<PatternEvalUpdate>,
+    patteval_update_tx: &crossbeam_channel::Sender<PatternEvalUpdate>,
     playback_updates_rx: crossbeam_channel::Receiver<AdapticsWSServerMessage>,
     tracking_data_ws_rx: Option<crossbeam_channel::Receiver<AdapticsWSServerMessage>>,
 ) {
     let wsclients = Arc::new(Mutex::new(Vec::new()));
     {
         let wsclients = wsclients.clone();
-        std::thread::spawn(move || websocket_dispatcher_loop_thread(wsclients, playback_updates_rx, tracking_data_ws_rx));
+        std::thread::spawn(move || websocket_dispatcher_loop_thread(&wsclients, &playback_updates_rx, tracking_data_ws_rx.as_ref()));
     }
     let listener = TcpListener::bind(websocket_server_addr).unwrap();
     for stream in listener.incoming() {
@@ -275,7 +282,7 @@ pub fn start_ws_server(
                 }
             }
             Err(e) => {
-                println!("error: {}", e);
+                println!("error: {e}");
             }
         }
     }

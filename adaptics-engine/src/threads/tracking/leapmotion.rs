@@ -1,4 +1,5 @@
 use crossbeam_channel::TrySendError;
+#[allow(clippy::wildcard_imports)]
 use leapc_dyn_sys::*;
 
 use crate::{TLError, threads::net::websocket::AdapticsWSServerMessage, DEBUG_LOG_LAG_EVENTS};
@@ -53,7 +54,7 @@ struct LeapCSafe {
 impl LeapCSafe {
 	fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		let lib = unsafe { load_leapc_library() }.map_err(|_e|
-			TLError::new(&format!("Failed to find and load {} dynamic library. Searched for '{}' and '{}'.", LIBRARY_BASENAME, LIBRARY_NAME, LIBRARY_FULLPATH))
+			TLError::new(&format!("Failed to find and load {LIBRARY_BASENAME} dynamic library. Searched for '{LIBRARY_NAME}' and '{LIBRARY_FULLPATH}'."))
 		)?;
 
 		// I tried extracted the functions I wanted out of the `Result`s here, and keeping the reference on LeapCSafe, but this doesnt work:
@@ -106,6 +107,7 @@ impl LeapCSafe {
 	}
 }
 
+#[allow(clippy::needless_pass_by_value)] // idc
 fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingHand) + 'a>, is_done: Box<dyn Fn() -> bool + 'a>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
 	let leap_c_safe = LeapCSafe::new()?;
 
@@ -153,9 +155,8 @@ fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingHand) + 'a>, is_done: Box<dyn
 			} else {
 				// we don't care about other events
 			}
-		} else {
-			continue; // loop if timeout
 		}
+		// else loop if timeout
 	}
 
 	leap_c_safe.close_connection(connection_handle);
@@ -211,7 +212,7 @@ impl LMCRawTrackingVec3 {
 impl From<&LMCRawTrackingHand> for TrackingFrame {
 	fn from(raw: &LMCRawTrackingHand) -> Self {
 		TrackingFrame {
-			hand: if !raw.has_hand { None } else {
+			hand: if raw.has_hand {
 				Some(TrackingFrameHand {
 					chirality: if raw.left_hand { TrackingFrameHandChirality::Left } else { TrackingFrameHandChirality::Right },
 					palm: TrackingFramePalm {
@@ -232,7 +233,7 @@ impl From<&LMCRawTrackingHand> for TrackingFrame {
 						}
 					}).collect::<Vec<_>>().try_into().unwrap(), // Converting Vec to fixed-size array
 				})
-			}
+			} else { None }
 		}
 	}
 }
@@ -240,18 +241,18 @@ impl From<&LMCRawTrackingHand> for TrackingFrame {
 pub fn start_tracking_loop(
 	tracking_data_tx: crossbeam_channel::Sender<TrackingFrame>,
 	tracking_data_ws_tx: Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>,
-	end_tracking_rx: crossbeam_channel::Receiver<()>,
+	end_tracking_rx: &crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
 	let tracking_callback = move |raw_coords: &LMCRawTrackingHand| {
 		let tracking_frame: TrackingFrame = raw_coords.into();
 		match tracking_data_tx.try_send(tracking_frame.clone()) {
-			Ok(_) => {},
+			Ok(()) => {},
 			Err(TrySendError::Disconnected(_)) => {}, // is_done() should return true, so the run loop will exit
 			Err(TrySendError::Full(_)) => { if DEBUG_LOG_LAG_EVENTS { println!("playback thread lagged [tracking]"); } }, // we are sending too fast for playback thread, so we can just drop this frame
 		}
 		if let Some(tracking_data_ws_tx) = tracking_data_ws_tx.as_ref() {
 			match tracking_data_ws_tx.try_send(AdapticsWSServerMessage::TrackingData { tracking_frame }) {
-				Ok(_) => {},
+				Ok(()) => {},
 				Err(TrySendError::Disconnected(_)) => {}, // is_done() should return true, so the run loop will exit
 				Err(TrySendError::Full(_)) => { if DEBUG_LOG_LAG_EVENTS { println!("network thread lagged [tracking]"); } }, // we are sending too fast for network thread, so we can just drop this frame
 			}

@@ -10,7 +10,7 @@ use crate::{threads::{common::{ MilSec, instant_add_js_milliseconds }, net::webs
 #[serde(tag = "cmd", content = "data")]
 #[serde(rename_all = "snake_case")]
 pub enum PatternEvalUpdate {
-	/// pattern_json is a string containing the tacton/pattern in JSON format (see [pattern_evaluator::MidAirHapticsAnimationFileFormat])
+	/// `pattern_json` is a string containing the tacton/pattern in JSON format (see [`pattern_evaluator::MidAirHapticsAnimationFileFormat`])
 	#[serde(rename="update_pattern")]
     Pattern{ pattern_json: String },
 
@@ -23,7 +23,7 @@ pub enum PatternEvalUpdate {
 	#[serde(rename="update_playstart")]
     Playstart{ playstart: MilSec, playstart_offset: MilSec },
 
-	/// See [PatternEvaluatorParameters]
+	/// See [`PatternEvaluatorParameters`]
 	#[serde(rename="update_parameters")]
     Parameters{ evaluator_params: PatternEvaluatorParameters },
 
@@ -42,22 +42,22 @@ pub(crate) enum PatternEvalCall {
     EvalBatch{ time_arr_instants: Vec<Instant>},
 }
 
-/// if seconds_per_playback_update is true, send playback updates prior to applying tracking translation
+/// if `seconds_per_playback_update` is true, send playback updates prior to applying tracking translation
 pub(crate) fn pattern_eval_loop(
 	seconds_per_playback_update: f64,
 	send_untracked_playback_updates: bool,
-	patteval_call_rx: crossbeam_channel::Receiver<PatternEvalCall>,
-	patteval_update_rx: crossbeam_channel::Receiver<PatternEvalUpdate>,
-	patteval_return_tx: crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
-	playback_updates_tx: Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>,
-	tracking_data_rx: Option<crossbeam_channel::Receiver<TrackingFrame>>,
+	patteval_call_rx: &crossbeam_channel::Receiver<PatternEvalCall>,
+	patteval_update_rx: &crossbeam_channel::Receiver<PatternEvalUpdate>,
+	patteval_return_tx: &crossbeam_channel::Sender<Vec<BrushAtAnimLocalTime>>,
+	playback_updates_tx: Option<&crossbeam_channel::Sender<AdapticsWSServerMessage>>,
+	tracking_data_rx: Option<&crossbeam_channel::Receiver<TrackingFrame>>,
 ) -> Result<(), crossbeam_channel::RecvError> {
 	let default_pattern = pattern_evaluator::MidAirHapticsAnimationFileFormat {
 		data_format: pattern_evaluator::MidAirHapticsAnimationFileFormatDataFormatName::DataFormat,
 		revision: pattern_evaluator::DataFormatRevision::CurrentRevision,
 		name: "DEFAULT_PATTERN".to_string(),
 		keyframes: vec![],
-		pattern_transform: Default::default(),
+		pattern_transform: pattern_evaluator::PatternTransformation::default(),
 		user_parameter_definitions: HashMap::new(),
 	};
 
@@ -74,7 +74,8 @@ pub(crate) fn pattern_eval_loop(
 
 	let mut send_stopping_updates = false;
 
-	fn send_playback_updates(last_playback_update: &mut Instant, playback_update_buffer: &mut Vec<BrushAtAnimLocalTime>, playback_updates_tx: &Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>) {
+	#[allow(clippy::items_after_statements)]
+	fn send_playback_updates(last_playback_update: &mut Instant, playback_update_buffer: &mut Vec<BrushAtAnimLocalTime>, playback_updates_tx: Option<&crossbeam_channel::Sender<AdapticsWSServerMessage>>) {
 		*last_playback_update = Instant::now();
 		if playback_update_buffer.is_empty() {
 			println!("[warn] skipping network update (no evals)");
@@ -97,16 +98,17 @@ pub(crate) fn pattern_eval_loop(
 	loop {
 		// not using select macro because of https://github.com/rust-lang/rust-analyzer/issues/11847
 		let mut sel = crossbeam_channel::Select::new();
-		let patteval_call_rx_idx = sel.recv(&patteval_call_rx);
-		let patteval_update_rx_idx = sel.recv(&patteval_update_rx);
+		let patteval_call_rx_idx = sel.recv(patteval_call_rx);
+		let patteval_update_rx_idx = sel.recv(patteval_update_rx);
 		let tracking_data_rx_idx = tracking_data_rx.as_ref().map(|tracking_data_rx| sel.recv(tracking_data_rx));
 		let oper = sel.select();
 		match oper.index() {
 			i if i == patteval_call_rx_idx => {
-				let call = oper.recv(&patteval_call_rx)?;
+				let call = oper.recv(patteval_call_rx)?;
 				match call {
 					PatternEvalCall::EvalBatch{ time_arr_instants } => {
 						let eval_arr_raw: Vec<_> = time_arr_instants.iter().map(|time| {
+							#[allow(clippy::cast_precision_loss)]
 							if let Some(playstart) = pattern_playstart {
 								parameters.time = time.sub(playstart).as_nanos() as f64 / 1e6;
 							} //else reuse the last parameters.time
@@ -141,11 +143,11 @@ pub(crate) fn pattern_eval_loop(
 							let playback_update_evals = if send_untracked_playback_updates { &eval_arr_raw } else { &eval_arr_tracking_adjusted };
 							playback_update_buffer.extend_from_slice(playback_update_evals);
 
-							if (Instant::now() - last_playback_update).as_secs_f64() > seconds_per_playback_update {
+							if last_playback_update.elapsed().as_secs_f64() > seconds_per_playback_update {
 								if send_stopping_updates && playback_update_buffer.first().is_some_and(|e| e.stop) {
 									send_stopping_updates = false; // finished sending stop updates
 								}
-								send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, &playback_updates_tx);
+								send_playback_updates(&mut last_playback_update, &mut playback_update_buffer, playback_updates_tx);
 							}
 						}
 
@@ -153,7 +155,7 @@ pub(crate) fn pattern_eval_loop(
 				}
 			},
 			i if i == patteval_update_rx_idx => {
-				let update = oper.recv(&patteval_update_rx)?;
+				let update = oper.recv(patteval_update_rx)?;
 				match update {
 					PatternEvalUpdate::Pattern{ pattern_json } => {
 						pattern_eval = PatternEvaluator::new_from_json_string(&pattern_json).unwrap(); //todo: handle error (not sure how to propagate it to calling thread)

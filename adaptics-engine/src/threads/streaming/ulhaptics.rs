@@ -2,7 +2,9 @@ mod ffi;
 use core::panic;
 use std::{pin::Pin, sync::Mutex, time::Instant, ops::Add};
 
+#[allow(clippy::wildcard_imports)]
 use ffi::*;
+#[allow(clippy::wildcard_imports)]
 use ffi::cxx_ffi::*;
 use pattern_evaluator::{PatternEvaluator, BrushAtAnimLocalTime};
 
@@ -25,7 +27,7 @@ pub fn start_streaming_emitter(
 	callback_rate: f32,
 	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
 	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
-	end_streaming_rx: crossbeam_channel::Receiver<()>,
+	end_streaming_rx: &crossbeam_channel::Receiver<()>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	type CallbackFn = Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>;
 	static STATIC_ECALLBACK_MUTEX: Mutex<Option<CallbackFn>> = Mutex::new(None);
@@ -36,6 +38,7 @@ pub fn start_streaming_emitter(
 	let sync_epoch_instant = Instant::now();
 	let sync_epoch_chrono_ms = get_current_chrono_time();
 
+	#[allow(clippy::items_after_statements)]
 	fn static_streaming_emission_callback(time_arr_ms: &CxxVector<MilSec>, eval_results_arr: Pin<&mut CxxVector<EvalResult>>) {
 		if let Some(f) = STATIC_ECALLBACK_MUTEX.lock().unwrap().as_ref() {
 			f(time_arr_ms, eval_results_arr);
@@ -74,7 +77,7 @@ pub fn start_streaming_emitter(
 		Err(e) => {
 			let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
 			drop(cb);
-			Err(Box::new(TLError::new(&format!("error creating UltraLeap Haptics streaming controller: {}", e))))
+			Err(Box::new(TLError::new(&format!("error creating UltraLeap Haptics streaming controller: {e}"))))
 		}
 	}
 }
