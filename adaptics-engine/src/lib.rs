@@ -66,7 +66,7 @@ pub use websocket::AdapticsWSServerMessage;
 use threads::tracking;
 pub use pattern_evaluator::PatternEvaluatorParameters;
 mod util;
-use util::TLError;
+pub use util::AdapticsError;
 
 pub mod hapticglove {
     pub type DeviceType = crate::streaming::hapticglove::DeviceType;
@@ -80,6 +80,7 @@ const DEVICE_UPDATE_RATE: u64 = 20000; //20khz
 const SEND_UNTRACKED_PLAYBACK_UPDATES: bool = false;
 
 const DEBUG_LOG_LAG_EVENTS: bool = true;
+const DEBUG_LOG_SERIAL_RTT: bool = false;
 
 
 /// Handle to the Adaptics Engine threads and channels.
@@ -87,7 +88,7 @@ pub struct AdapticsEngineHandle {
     end_streaming_tx: crossbeam_channel::Sender<()>,
     pattern_eval_handle: thread::JoinHandle<()>,
     patteval_update_tx: crossbeam_channel::Sender<playback::PatternEvalUpdate>,
-    ulh_streaming_handle: thread::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>,
+    ulh_streaming_handle: thread::JoinHandle<Result<(), AdapticsError>>,
     playback_updates_rx: Option<crossbeam_channel::Receiver<websocket::AdapticsWSServerMessage>>,
 }
 
@@ -96,7 +97,7 @@ fn create_threads(
     disable_playback_updates: bool,
     vib_grid: Option<hapticglove::DeviceType>,
     tracking_data_rx: Option<crossbeam_channel::Receiver<tracking::TrackingFrame>>,
-) -> AdapticsEngineHandle {
+) -> Result<AdapticsEngineHandle, AdapticsError> {
     let (patteval_call_tx, patteval_call_rx) = crossbeam_channel::bounded(1);
     let (patteval_update_tx, patteval_update_rx) = crossbeam_channel::bounded(1);
     let (patteval_return_tx, patteval_return_rx) = crossbeam_channel::bounded::<Vec<BrushAtAnimLocalTime>>(0);
@@ -131,14 +132,14 @@ fn create_threads(
     let ulh_streaming_handle =  if let Some(vg_device) = vib_grid {
         thread::Builder::new()
             .name("vib-grid".to_string())
-            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            .spawn(move || -> Result<(), AdapticsError> {
                 println!("vib-grid thread starting...");
                 streaming::hapticglove::start_streaming_emitter(&vg_device, &patteval_call_tx, &patteval_return_rx, &end_streaming_rx)
-            }).unwrap()
+            })?
     } else if !use_mock_streaming {
         thread::Builder::new()
             .name("ulh-streaming".to_string())
-            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            .spawn(move || -> Result<(), AdapticsError> {
                 println!("ulhaptics streaming thread starting...");
 
                 #[allow(clippy::cast_possible_truncation)]
@@ -148,7 +149,7 @@ fn create_threads(
                     patteval_return_rx,
                     &end_streaming_rx,
                 )
-            }).unwrap()
+            })?
     } else {
         println!("using mock streaming");
         thread::Builder::new()
@@ -166,17 +167,16 @@ fn create_threads(
 
                 // println!("mock streaming thread exiting...");
                 Ok(())
-            })
-            .unwrap()
+            })?
     };
 
-    AdapticsEngineHandle {
+    Ok(AdapticsEngineHandle {
         end_streaming_tx,
         pattern_eval_handle,
         patteval_update_tx,
         ulh_streaming_handle,
         playback_updates_rx,
-    }
+    })
 }
 
 
@@ -190,7 +190,7 @@ pub fn run_threads_and_wait(
     websocket_bind_addr: Option<String>,
     enable_tracking: bool,
     vib_grid: Option<hapticglove::DeviceType>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), AdapticsError> {
 
     let (tracking_data_tx, tracking_data_rx) = if enable_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
 
@@ -200,11 +200,11 @@ pub fn run_threads_and_wait(
         patteval_update_tx,
         ulh_streaming_handle,
         playback_updates_rx,
-    } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), vib_grid, tracking_data_rx);
+    } = create_threads(use_mock_streaming, websocket_bind_addr.is_none(), vib_grid, tracking_data_rx)?;
 
     let (net_handle_opt, tracking_data_ws_tx) = if let Some(websocket_bind_addr) = websocket_bind_addr {
         let (tracking_data_ws_tx, tracking_data_ws_rx) = if enable_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
-        let playback_updates_rx = playback_updates_rx.ok_or(TLError::new("playback_updates_rx must be available when using the websocket server"))?;
+        let playback_updates_rx = playback_updates_rx.ok_or(AdapticsError::new("playback_updates_rx must be available when using the websocket server"))?;
         let thread = thread::Builder::new()
             .name("net".to_string())
             .spawn(move || {
@@ -219,7 +219,7 @@ pub fn run_threads_and_wait(
     let lmc_tracking_handle = if let Some(tracking_data_tx) = tracking_data_tx {
         let thread = thread::Builder::new()
             .name("lmc-tracking".to_string())
-            .spawn(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            .spawn(move || -> Result<(), AdapticsError> {
                 println!("tracking thread starting...");
                 tracking::leapmotion::start_tracking_loop(tracking_data_tx, tracking_data_ws_tx, &end_tracking_rx)
             })?;
@@ -268,6 +268,7 @@ pub enum FFIError {
     InteropUnkError = 15,
     TimeError = 16,
     CastError = 17,
+    AdapticsError = 18,
 }
 // Gives special meaning to some of your error variants.
 impl interoptopus::patterns::result::FFIError for FFIError {
@@ -298,6 +299,7 @@ impl FFIError {
             FFIError::InteropUnkError => "Interop unknown error.",
             FFIError::TimeError => "Error getting or using system time.",
             FFIError::CastError => "Error casting between types (e.g. from usize to u32).",
+            FFIError::AdapticsError => "An error occurred. Further error information could not be marshalled but may be available with debug builds.",
         }
     }
 }
@@ -330,6 +332,11 @@ impl From<interoptopus::Error> for FFIError {
 impl From<std::num::TryFromIntError> for FFIError {
     fn from(_value: std::num::TryFromIntError) -> Self {
         FFIError::CastError
+    }
+}
+impl From<AdapticsError> for FFIError {
+    fn from(_value: AdapticsError) -> Self {
+        FFIError::AdapticsError
     }
 }
 // impl<T> From<Result<T, FFIError>> for FFIError {
@@ -467,7 +474,7 @@ impl FFIHandle {
             Err(interoptopus::Error::UTF8(_)) => { return Err(FFIError::ParamUTF8Error) },
             Err(e) => { eprintln!("WARN(AdapticsEngine): unexpected error {e}"); None }, //unreachable!(),
         };
-        let aeh = create_threads(use_mock_streaming, !enable_playback_updates, vg, None);
+        let aeh = create_threads(use_mock_streaming, !enable_playback_updates, vg, None)?;
         let ffi_handle = AdapticsEngineHandleFFI::new(aeh);
         // get map or create new map
         let mut map = ENGINE_HANDLE_MAP.write().or(Err(FFIError::MutexPoisoned))?;

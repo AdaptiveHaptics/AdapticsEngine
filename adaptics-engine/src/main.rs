@@ -1,6 +1,5 @@
 use clap::Parser;
 // ## !NOTE: do NOT use mod (for threads). Everything must be through the lib crate
-mod util;
 
 /// Adaptics Engine CLI <https://github.com/AdaptiveHaptics/AdapticsEngine>
 ///
@@ -33,11 +32,11 @@ struct AdapticsEngineCliArgs {
     /// This parameter is ignored if --use-mock-streaming is enabled.
     /// Provide "auto" to attempt to auto-detect the device.
     /// Provide nothing or "" to print a list of available devices and exit.
-    #[clap(long, default_missing_value="")]
+    #[clap(long, default_missing_value=Some(""), num_args=0..=1)]
     vib_grid: Option<String>,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn main() -> Result<(), adaptics_engine::AdapticsError> {
     let cli_args = AdapticsEngineCliArgs::parse();
 
 
@@ -49,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             for (i, p) in serial_ports.iter().enumerate() {
                 println!("{}: {:?}", i, p);
             }
-            return Err(Box::new(util::TLError::new("No device specified.")));
+            return Err(adaptics_engine::AdapticsError::new("No device specified."));
         },
         Some(s) => Some(adaptics_engine::hapticglove::DeviceType::SerialPort(s.to_string())),
         None => None

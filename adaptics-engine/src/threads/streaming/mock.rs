@@ -32,8 +32,8 @@ pub fn start_mock_emitter(
 		}
 
 		let next_tick_at = last_tick + ecallback_tick_dur;
-		// if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // supports windows high resolution sleep since rust 1.75
-		if let Some(bwt) = USE_THREAD_SLEEP { spin_sleeper.sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // shouldnt need bwt but it does
+		// if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(next_tick_at.saturating_duration_since(Instant::now()).saturating_sub(Duration::from_micros(bwt))); } // supports windows high resolution sleep since rust 1.75
+		if let Some(bwt) = USE_THREAD_SLEEP { spin_sleeper.sleep(next_tick_at.saturating_duration_since(Instant::now()).saturating_sub(Duration::from_micros(bwt))); } // shouldnt need `bwt` but it does
 		while next_tick_at > Instant::now() {}
 		// spin_sleeper.sleep(next_tick_at - Instant::now()); // not accurate enough by itself on windows
 

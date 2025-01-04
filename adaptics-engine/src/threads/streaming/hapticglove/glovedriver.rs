@@ -1,12 +1,17 @@
 
+use std::{cell::Cell, time::{Duration, Instant}};
+
 use pattern_evaluator::MAHCoordsConst;
-use serialport;
+use serialport::{self, SerialPort};
+
+use crate::DEBUG_LOG_SERIAL_RTT;
 
 const NUM_DRIVERS: usize = 16;
 const COBS_DELIM: u8 = 0x88; // using unlikely byte as delim
 const HEADER_LEN: usize = 1; // 1 byte COBS overhead
 const FOOTER_LEN: usize = 1; // 1 byte delim
 const PACKET_LEN: usize = HEADER_LEN + NUM_DRIVERS + FOOTER_LEN;
+const ACK_PACKET: &[u8] = b"OKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOK\r\n";
 
 const MAX_DIST: f64 = 30.0; // mm, distance from LRA where amp is 0%
 
@@ -45,20 +50,63 @@ pub const DEFAULT_LRA_LAYOUT: LRALayout = [ //left hand palm down
 	MAHCoordsConst { x: -38.0, y: 72.0, z: 0.0 },
 ];
 
-pub trait IoPort: std::io::Write + std::io::Read {}
-impl<T: std::io::Write + std::io::Read> IoPort for T {}
-struct MockIO {}
-impl std::io::Write for MockIO {
-	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> { Ok(buf.len()) }
+pub trait IoPort: std::io::Write + std::io::Read {
+	fn clear_rx_buf(&mut self) -> std::io::Result<()>;
+}
+impl<T: AsRef<dyn SerialPort> + std::io::Write + std::io::Read> IoPort for T {
+	fn clear_rx_buf(&mut self) -> std::io::Result<()> {
+		Ok(self.as_ref().clear(serialport::ClearBuffer::Input)?)
+	}
+}
+
+struct MockIO {
+	write_time: Cell<Instant>,
+	device_latency: Duration
+}
+impl MockIO {
+	pub fn new() -> Self {
+		MockIO { write_time: Cell::new(Instant::now()), device_latency: Duration::from_micros(100) }
+	}
+}
+impl std::default::Default for MockIO {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+impl std::io::Write for &MockIO {
+	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+		self.write_time.set(Instant::now());
+		Ok(buf.len())
+	}
 	fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
 }
+impl std::io::Write for MockIO {
+	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> { (&mut &*self).write(buf) }
+	fn flush(&mut self) -> std::io::Result<()> { (&mut &*self).flush() }
+}
+impl std::io::Read for &MockIO {
+	fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+		let sleep_time = self.device_latency.saturating_sub(self.write_time.get().elapsed());
+		std::thread::sleep(sleep_time);
+		// put OK\n in buf
+		if buf.len() < 3 { return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Buffer too small")); }
+		buf[0] = 0x4F;
+		buf[1] = 0x4B;
+		buf[2] = 0x0A;
+		Ok(3)
+	}
+}
 impl std::io::Read for MockIO {
-	fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> { Ok(0) }
+	fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> { (&mut &*self).read(buf) }
+}
+impl IoPort for MockIO {
+	fn clear_rx_buf(&mut self) -> std::io::Result<()> { Ok(()) }
 }
 
 pub struct GloveDriver {
 	io_port: Box<dyn IoPort>,
 	tx_buf: Vec<u8>,
+	rx_buf: Vec<u8>,
 	lra_layout: LRALayout,
 }
 pub struct DriverAmplitudes([u8; NUM_DRIVERS]);
@@ -72,21 +120,29 @@ impl GloveDriver {
 	pub fn get_possible_serial_ports() -> Vec<serialport::SerialPortInfo> {
 		let ports = serialport::available_ports().unwrap();
 		// could filter by p.port_type == SerialPortType::UsbPort
-		for p in &ports {
-			println!("serial port: {p:?}");
-		}
+		// for p in &ports {
+		// 	println!("serial port: {p:?}");
+		// }
 		ports
 	}
 
 	pub fn new(io_port: Box<dyn IoPort>, lra_layout: LRALayout) -> Self {
-		GloveDriver { io_port, tx_buf: Vec::with_capacity(PACKET_LEN), lra_layout }
+		GloveDriver {
+			io_port,
+			tx_buf: Vec::with_capacity(PACKET_LEN),
+			rx_buf: vec![0; 256],
+			lra_layout
+		}
 	}
 	pub fn new_mock(lra_layout: LRALayout) -> Self {
-		GloveDriver::new(Box::new(MockIO {}), lra_layout)
+		GloveDriver::new(Box::new(MockIO::default()), lra_layout)
 	}
 	pub fn new_for_serial_port(port: &str, lra_layout: LRALayout) -> std::io::Result<Self> {
-		let port = serialport::new(port, 115_200).open()?;
-		let io_port: Box<dyn IoPort> = Box::new(port);
+		let s_port = serialport::new(port, 115_200)
+			.timeout(Duration::from_millis(100))
+			.baud_rate(921_600)
+			.open()?;
+		let io_port: Box<dyn IoPort> = Box::new(s_port);
 		Ok(GloveDriver::new(io_port, lra_layout))
 	}
 	pub fn new_with_auto_serial_port(lra_layout: LRALayout) -> std::io::Result<Self> {
@@ -119,7 +175,27 @@ impl GloveDriver {
 			}
 		}
 
+		let mut len_read = 0;
+		self.io_port.clear_rx_buf()?;
+
+		let begin_write = Instant::now();
 		self.io_port.write_all(&self.tx_buf)?;
+		println!("DEBUG: Sent packet: {:?}", &self.tx_buf);
+
+		while !self.rx_buf[0..len_read].contains(&b'\n') { // read until newline
+			match self.io_port.read(&mut self.rx_buf[len_read..]) {
+				Ok(n) => len_read += n,
+				Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => { std::thread::sleep(Duration::from_millis(1)); },
+				Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => { eprintln!("WARN: Timed out reading from haptic glove device"); continue; },
+				Err(e) => return Err(e),
+			}
+		}
+		if DEBUG_LOG_SERIAL_RTT { println!("DEBUG: RTT: {:?}", begin_write.elapsed()); }
+
+		if !self.rx_buf.starts_with(ACK_PACKET) {
+			let response = std::str::from_utf8(&self.rx_buf[0..len_read]).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Response not UTF-8")))?;
+			return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("unexpected device response: {response:?}")));
+		}
 
 		Ok(())
 	}

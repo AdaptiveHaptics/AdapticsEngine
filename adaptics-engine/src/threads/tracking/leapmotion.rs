@@ -2,7 +2,7 @@ use crossbeam_channel::TrySendError;
 #[allow(clippy::wildcard_imports)]
 use leapc_dyn_sys::*;
 
-use crate::{TLError, threads::net::websocket::AdapticsWSServerMessage, DEBUG_LOG_LAG_EVENTS};
+use crate::{threads::net::websocket::AdapticsWSServerMessage, util::AdapticsError, DEBUG_LOG_LAG_EVENTS};
 
 use super::{TrackingFrame, TrackingFrameHand, TrackingFrameHandChirality, TrackingFrameDigit, TrackingFrameBone, TrackingFramePalm};
 
@@ -52,9 +52,9 @@ struct LeapCSafe {
 	lib: LeapC,
 }
 impl LeapCSafe {
-	fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+	fn new() -> Result<Self, AdapticsError> {
 		let lib = unsafe { load_leapc_library() }.map_err(|_e|
-			TLError::new(&format!("Failed to find and load {LIBRARY_BASENAME} dynamic library. Searched for '{LIBRARY_NAME}' and '{LIBRARY_FULLPATH}'."))
+			AdapticsError::new(&format!("Failed to find and load {LIBRARY_BASENAME} dynamic library. Searched for '{LIBRARY_NAME}' and '{LIBRARY_FULLPATH}'."))
 		)?;
 
 		// I tried extracted the functions I wanted out of the `Result`s here, and keeping the reference on LeapCSafe, but this doesnt work:
@@ -65,29 +65,29 @@ impl LeapCSafe {
 		// verify that the library has the functions we need on initialization
 		// errors when actually calling functions will cause a panic (because bindgen calls .expect)
 		// we cant manually return the libloading errors later, because they will be behind the &self borrow, and libloading::Error doesnt implement Clone
-		if let Err(e) = lib.LeapCreateConnection { return Err(Box::new(e)); }
-		if let Err(e) = lib.LeapOpenConnection { return Err(Box::new(e)); }
-		if let Err(e) = lib.LeapPollConnection { return Err(Box::new(e)); }
-		if let Err(e) = lib.LeapCloseConnection { return Err(Box::new(e)); }
-		if let Err(e) = lib.LeapDestroyConnection { return Err(Box::new(e)); }
+		if let Err(e) = lib.LeapCreateConnection { return Err(e)?; }
+		if let Err(e) = lib.LeapOpenConnection { return Err(e)?; }
+		if let Err(e) = lib.LeapPollConnection { return Err(e)?; }
+		if let Err(e) = lib.LeapCloseConnection { return Err(e)?; }
+		if let Err(e) = lib.LeapDestroyConnection { return Err(e)?; }
 
 		Ok(Self { lib })
 	}
 
-	fn create_connection(&self) -> Result<LEAP_CONNECTION, Box<dyn std::error::Error + Send + Sync>> {
+	fn create_connection(&self) -> Result<LEAP_CONNECTION, AdapticsError> {
 		let mut connection_handle: LEAP_CONNECTION = std::ptr::null_mut();
 		let res = unsafe { self.lib.LeapCreateConnection(std::ptr::null(), &mut connection_handle) };
 		eleaprs_to_result(res)?;
 		Ok(connection_handle)
 	}
-	fn open_connection(&self, connection_handle: LEAP_CONNECTION) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+	fn open_connection(&self, connection_handle: LEAP_CONNECTION) -> Result<(), AdapticsError> {
 		let res = unsafe { self.lib.LeapOpenConnection(connection_handle) };
 		eleaprs_to_result(res)?;
 		Ok(())
 	}
 	/// timeout is in milliseconds
 	/// Returns Ok(None) if timeout
-	fn poll_connection(&self, connection_handle: LEAP_CONNECTION, timeout: u32) -> Result<Option<LEAP_CONNECTION_MESSAGE>, Box<dyn std::error::Error + Send + Sync>> {
+	fn poll_connection(&self, connection_handle: LEAP_CONNECTION, timeout: u32) -> Result<Option<LEAP_CONNECTION_MESSAGE>, AdapticsError> {
 		let mut msg: LEAP_CONNECTION_MESSAGE = unsafe { std::mem::zeroed() };
 		let res = unsafe { self.lib.LeapPollConnection(connection_handle, timeout, &mut msg) };
 		if res == _eLeapRS_eLeapRS_Timeout {
@@ -108,7 +108,7 @@ impl LeapCSafe {
 }
 
 #[allow(clippy::needless_pass_by_value)] // idc
-fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingHand) + 'a>, is_done: Box<dyn Fn() -> bool + 'a>) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingHand) + 'a>, is_done: Box<dyn Fn() -> bool + 'a>) -> Result<(), AdapticsError> {
 	let leap_c_safe = LeapCSafe::new()?;
 
 	let connection_handle = leap_c_safe.create_connection()?;
@@ -165,30 +165,73 @@ fn run_loop<'a>(cb_func: Box<dyn Fn(&LMCRawTrackingHand) + 'a>, is_done: Box<dyn
 	Ok(())
 }
 
-fn eleaprs_to_result(res: eLeapRS) -> Result<(), &'static str> {
-	match res {
-		leapc_dyn_sys::_eLeapRS_eLeapRS_Success                  => Ok(()),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_UnknownError             => Err("eLeapRS_UnknownError"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_InvalidArgument          => Err("eLeapRS_InvalidArgument"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_InsufficientResources    => Err("eLeapRS_InsufficientResources"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_InsufficientBuffer       => Err("eLeapRS_InsufficientBuffer"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_Timeout                  => Err("eLeapRS_Timeout"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_NotConnected             => Err("eLeapRS_NotConnected"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_HandshakeIncomplete      => Err("eLeapRS_HandshakeIncomplete"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_BufferSizeOverflow       => Err("eLeapRS_BufferSizeOverflow"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_ProtocolError            => Err("eLeapRS_ProtocolError"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_InvalidClientID          => Err("eLeapRS_InvalidClientID"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_UnexpectedClosed         => Err("eLeapRS_UnexpectedClosed"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_UnknownImageFrameRequest => Err("eLeapRS_UnknownImageFrameRequest"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_UnknownTrackingFrameID   => Err("eLeapRS_UnknownTrackingFrameID"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_RoutineIsNotSeer         => Err("eLeapRS_RoutineIsNotSeer"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_TimestampTooEarly        => Err("eLeapRS_TimestampTooEarly"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_ConcurrentPoll           => Err("eLeapRS_ConcurrentPoll"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_NotAvailable             => Err("eLeapRS_NotAvailable"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_NotStreaming             => Err("eLeapRS_NotStreaming"),
-		leapc_dyn_sys::_eLeapRS_eLeapRS_CannotOpenDevice         => Err("eLeapRS_CannotOpenDevice"),
-		_ => Err("Unknown eLeapRS"),
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ELeapRS {
+	Success,
+	UnknownError,
+	InvalidArgument,
+	InsufficientResources,
+	InsufficientBuffer,
+	Timeout,
+	NotConnected,
+	HandshakeIncomplete,
+	BufferSizeOverflow,
+	ProtocolError,
+	InvalidClientID,
+	UnexpectedClosed,
+	UnknownImageFrameRequest,
+	UnknownTrackingFrameID,
+	RoutineIsNotSeer,
+	TimestampTooEarly,
+	ConcurrentPoll,
+	NotAvailable,
+	NotStreaming,
+	CannotOpenDevice,
+	Unknown,
+}
+impl std::error::Error for ELeapRS {}
+impl std::fmt::Display for ELeapRS {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "{self:?}")
 	}
+}
+impl From<_eLeapRS> for ELeapRS {
+	fn from(value: _eLeapRS) -> Self {
+		match value {
+			leapc_dyn_sys::_eLeapRS_eLeapRS_Success                  => ELeapRS::Success,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_UnknownError             => ELeapRS::UnknownError,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_InvalidArgument          => ELeapRS::InvalidArgument,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_InsufficientResources    => ELeapRS::InsufficientResources,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_InsufficientBuffer       => ELeapRS::InsufficientBuffer,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_Timeout                  => ELeapRS::Timeout,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_NotConnected             => ELeapRS::NotConnected,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_HandshakeIncomplete      => ELeapRS::HandshakeIncomplete,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_BufferSizeOverflow       => ELeapRS::BufferSizeOverflow,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_ProtocolError            => ELeapRS::ProtocolError,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_InvalidClientID          => ELeapRS::InvalidClientID,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_UnexpectedClosed         => ELeapRS::UnexpectedClosed,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_UnknownImageFrameRequest => ELeapRS::UnknownImageFrameRequest,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_UnknownTrackingFrameID   => ELeapRS::UnknownTrackingFrameID,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_RoutineIsNotSeer         => ELeapRS::RoutineIsNotSeer,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_TimestampTooEarly        => ELeapRS::TimestampTooEarly,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_ConcurrentPoll           => ELeapRS::ConcurrentPoll,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_NotAvailable             => ELeapRS::NotAvailable,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_NotStreaming             => ELeapRS::NotStreaming,
+			leapc_dyn_sys::_eLeapRS_eLeapRS_CannotOpenDevice         => ELeapRS::CannotOpenDevice,
+			_ => ELeapRS::Unknown,
+		}
+	}
+}
+impl From<ELeapRS> for Result<(), ELeapRS> {
+	fn from(value: ELeapRS) -> Self {
+		match value {
+			ELeapRS::Success => Ok(()),
+			_ => Err(value),
+		}
+	}
+}
+fn eleaprs_to_result(res: eLeapRS) -> Result<(), ELeapRS> {
+	ELeapRS::from(res).into()
 }
 
 impl LMCRawTrackingVec3 {
@@ -242,7 +285,7 @@ pub fn start_tracking_loop(
 	tracking_data_tx: crossbeam_channel::Sender<TrackingFrame>,
 	tracking_data_ws_tx: Option<crossbeam_channel::Sender<AdapticsWSServerMessage>>,
 	end_tracking_rx: &crossbeam_channel::Receiver<()>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+) -> Result<(), AdapticsError> {
 	let tracking_callback = move |raw_coords: &LMCRawTrackingHand| {
 		let tracking_frame: TrackingFrame = raw_coords.into();
 		match tracking_data_tx.try_send(tracking_frame.clone()) {

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use pattern_evaluator::BrushAtAnimLocalTime;
 
-use crate::{threads::pattern::playback::PatternEvalCall, DEBUG_LOG_LAG_EVENTS};
+use crate::{threads::pattern::playback::PatternEvalCall, util::AdapticsError, DEBUG_LOG_LAG_EVENTS};
 
 // pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // if native sleep { still busy wait for ~1000ms, to avoid thread sleeping for too long }
 pub const USE_THREAD_SLEEP: Option<u64> = Some(500); // spin_sleeper still needs some buffer time (it shouldnt need any), but less than native. idk if it overtrusts the os sleep, or its some other slowdown?
@@ -29,7 +29,13 @@ pub fn start_streaming_emitter(
 	patteval_call_tx: &crossbeam_channel::Sender<PatternEvalCall>,
 	patteval_return_rx: &crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
 	end_streaming_rx: &crossbeam_channel::Receiver<()>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), AdapticsError> {
+
+	let mut gd = match device_type {
+		DeviceType::SerialPort(port) => glovedriver::GloveDriver::new_for_serial_port(port, glovedriver::DEFAULT_LRA_LAYOUT)?,
+		DeviceType::Mock => glovedriver::GloveDriver::new_mock(glovedriver::DEFAULT_LRA_LAYOUT),
+		DeviceType::Auto => glovedriver::GloveDriver::new_with_auto_serial_port(glovedriver::DEFAULT_LRA_LAYOUT)?,
+	};
 
 	let device_tick_dur = Duration::from_nanos(1_000_000_000/SAMPLE_RATE);
 	let ecallback_tick_dur = Duration::from_secs_f64(1.0/CALLBACK_RATE);
@@ -37,13 +43,6 @@ pub fn start_streaming_emitter(
 	let mut last_tick = Instant::now();
 
 	let spin_sleeper = spin_sleep::SpinSleeper::default();
-
-
-	let mut gd = match device_type {
-		DeviceType::SerialPort(port) => glovedriver::GloveDriver::new_for_serial_port(port, glovedriver::DEFAULT_LRA_LAYOUT)?,
-		DeviceType::Mock => glovedriver::GloveDriver::new_mock(glovedriver::DEFAULT_LRA_LAYOUT),
-		DeviceType::Auto => glovedriver::GloveDriver::new_with_auto_serial_port(glovedriver::DEFAULT_LRA_LAYOUT)?,
-	};
 
 	assert!(device_tick_dur.as_secs_f64() > 0.0, "device_tick_dur must be > 0");
 	loop {
@@ -53,7 +52,7 @@ pub fn start_streaming_emitter(
 
 		let next_tick_at = last_tick + ecallback_tick_dur;
 		// if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // supports windows high resolution sleep since rust 1.75
-		if let Some(bwt) = USE_THREAD_SLEEP { spin_sleeper.sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // shouldnt need bwt but it does
+		if let Some(bwt) = USE_THREAD_SLEEP { spin_sleeper.sleep(next_tick_at.saturating_duration_since(Instant::now()).saturating_sub(Duration::from_micros(bwt))); } // shouldnt need bwt but it does
 		while next_tick_at > Instant::now() {} // busy wait remaining time
 		// spin_sleeper.sleep(next_tick_at - Instant::now()); // not accurate enough by itself on windows
 
@@ -73,8 +72,8 @@ pub fn start_streaming_emitter(
 		}
 
 		if patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).is_ok() {
-			let eval_arr = patteval_return_rx.recv().unwrap();
-			gd.apply_batch(&eval_arr).unwrap();
+			let eval_arr = patteval_return_rx.recv()?;
+			gd.apply_batch(&eval_arr)?;
 		} else {
 			// patt eval thread exited (or panicked),
 			// end_streaming_rx will be called by main thread, could exit here anyway

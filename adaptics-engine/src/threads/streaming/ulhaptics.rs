@@ -8,7 +8,7 @@ use ffi::*;
 use ffi::cxx_ffi::*;
 use pattern_evaluator::{PatternEvaluator, BrushAtAnimLocalTime};
 
-use crate::{threads::{common::{MilSec, js_milliseconds_to_duration}, pattern::playback::PatternEvalCall}, TLError};
+use crate::{threads::{common::{js_milliseconds_to_duration, MilSec}, pattern::playback::PatternEvalCall}, util::AdapticsError};
 
 impl From<BrushAtAnimLocalTime> for EvalResult {
     fn from(be: BrushAtAnimLocalTime) -> EvalResult {
@@ -28,7 +28,7 @@ pub fn start_streaming_emitter(
 	patteval_call_tx: crossbeam_channel::Sender<PatternEvalCall>,
 	patteval_return_rx: crossbeam_channel::Receiver<Vec<BrushAtAnimLocalTime>>,
 	end_streaming_rx: &crossbeam_channel::Receiver<()>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), AdapticsError> {
 	type CallbackFn = Box<dyn Fn(&CxxVector<MilSec>, Pin<&mut CxxVector<EvalResult>>) + Send>;
 	static STATIC_ECALLBACK_MUTEX: Mutex<Option<CallbackFn>> = Mutex::new(None);
 
@@ -59,25 +59,25 @@ pub fn start_streaming_emitter(
 			//# note:  its seems that ULHStreamingController::~ULHStreamingController() was already called, and this callback is still being called due to multithreading internal to Ultraleap
 		}
 	};
-	if let Some(_cb) = STATIC_ECALLBACK_MUTEX.lock().unwrap().replace(Box::new(streaming_emission_callback)) {
+	if let Some(_cb) = STATIC_ECALLBACK_MUTEX.lock().or(Err(AdapticsError::new("STATIC_ECALLBACK_MUTEX poisoned")))?.replace(Box::new(streaming_emission_callback)) {
 		panic!("cannot have multiple streaming emitters running at once");
 	}
 
 	match new_ulh_streaming_controller(callback_rate, static_streaming_emission_callback) {
 		Ok(mut ulh_streaming_controller) => {
-			ulh_streaming_controller.pin_mut().resume_emitter().unwrap();
-			// println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap()); # 0
-			end_streaming_rx.recv().unwrap();
-			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations().unwrap());
+			ulh_streaming_controller.pin_mut().resume_emitter()?;
+			// println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations()?); # 0
+			end_streaming_rx.recv()?;
+			println!("getMissedCallbackIterations: {}", ulh_streaming_controller.getMissedCallbackIterations()?);
 			drop(ulh_streaming_controller);
-			let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
+			let cb = STATIC_ECALLBACK_MUTEX.lock().or(Err(AdapticsError::new("STATIC_ECALLBACK_MUTEX poisoned")))?.take();
 			drop(cb);
 			Ok(())
 		},
 		Err(e) => {
-			let cb = STATIC_ECALLBACK_MUTEX.lock().unwrap().take();
+			let cb = STATIC_ECALLBACK_MUTEX.lock().or(Err(AdapticsError::new("STATIC_ECALLBACK_MUTEX poisoned")))?.take();
 			drop(cb);
-			Err(Box::new(TLError::new(&format!("error creating UltraLeap Haptics streaming controller: {e}"))))
+			Err(AdapticsError::new(&format!("Error creating UltraLeap Haptics streaming controller: {e}")))
 		}
 	}
 }
