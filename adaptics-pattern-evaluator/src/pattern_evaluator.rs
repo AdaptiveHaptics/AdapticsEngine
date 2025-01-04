@@ -163,7 +163,7 @@ impl PatternEvaluator {
         } else if let Some(prev_intensity) = prev_intensity {
             return get_intensity_value(&prev_intensity.pwt.intensity, dyn_up_info);
         } else {
-            return 1.0;
+            return 0.0;
         }
     }
 
