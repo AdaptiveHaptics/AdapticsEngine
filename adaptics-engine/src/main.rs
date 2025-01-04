@@ -43,7 +43,7 @@ fn main() -> Result<(), adaptics_engine::AdapticsError> {
     let device_type = match cli_args.vib_grid.as_deref() {
         Some("auto") => Some(adaptics_engine::hapticglove::DeviceType::Auto),
         Some("") => {
-            let serial_ports = Some(adaptics_engine::hapticglove::get_possible_serial_ports());
+            let serial_ports = adaptics_engine::hapticglove::get_possible_serial_ports()?;
             println!("Available devices:");
             for (i, p) in serial_ports.iter().enumerate() {
                 println!("{}: {:?}", i, p);

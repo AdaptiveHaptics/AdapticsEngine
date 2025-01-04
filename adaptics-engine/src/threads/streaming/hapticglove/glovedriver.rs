@@ -18,36 +18,36 @@ const MAX_DIST: f64 = 30.0; // mm, distance from LRA where amp is 0%
 type LRALayout = [MAHCoordsConst; NUM_DRIVERS];
 pub const DEFAULT_LRA_LAYOUT: LRALayout = [ //left hand palm down
 	//palm top row
-	MAHCoordsConst { x: 2.0, y: 14.0, z: 0.0 },
-	MAHCoordsConst { x: -24.0, y: 14.0, z: 0.0 },
-	MAHCoordsConst { x: 30.0, y: 14.0, z: 0.0 },
+	MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
+	MAHCoordsConst { x: -26.0, y: 0.0, z: 0.0 },
+	MAHCoordsConst { x: 28.0, y: 0.0, z: 0.0 },
 
 	//palm bottom row
-	MAHCoordsConst { x: 2.0, y: -25.0, z: 0.0 },
-	MAHCoordsConst { x: -24.0, y: -24.0, z: 0.0 },
-	MAHCoordsConst { x: 30.0, y: -23.0, z: 0.0 },
+	MAHCoordsConst { x: 0.0, y: -39.0, z: 0.0 },
+	MAHCoordsConst { x: -26.0, y: -38.0, z: 0.0 },
+	MAHCoordsConst { x: 28.0, y: -37.0, z: 0.0 },
 
 	//wrist
-	MAHCoordsConst { x: 0.0, y: -60.0, z: 0.0 },
+	MAHCoordsConst { x: -1.0, y: -74.0, z: 0.0 },
 
 	//thumb
-	MAHCoordsConst { x: 65.0, y: 7.0, z: 0.0 },
+	MAHCoordsConst { x: 63.0, y: -7.0, z: 0.0 },
 
 	//index finger
-	MAHCoordsConst { x: 35.0, y: 50.0, z: 0.0 },
-	MAHCoordsConst { x: 38.0, y: 90.0, z: 0.0 },
+	MAHCoordsConst { x: 33.0, y: 36.0, z: 0.0 },
+	MAHCoordsConst { x: 36.0, y: 76.0, z: 0.0 },
 
 	//middle finger
-	MAHCoordsConst { x: 11.0, y: 58.0, z: 0.0 },
-	MAHCoordsConst { x: 13.0, y: 98.0, z: 0.0 },
+	MAHCoordsConst { x: 9.0, y: 44.0, z: 0.0 },
+	MAHCoordsConst { x: 11.0, y: 84.0, z: 0.0 },
 
 	//ring finger
-	MAHCoordsConst { x: -12.0, y: 55.0, z: 0.0 },
-	MAHCoordsConst { x: -14.0, y: 90.0, z: 0.0 },
+	MAHCoordsConst { x: -14.0, y: 41.0, z: 0.0 },
+	MAHCoordsConst { x: -16.0, y: 76.0, z: 0.0 },
 
 	//little finger
-	MAHCoordsConst { x: -33.0, y: 50.0, z: 0.0 },
-	MAHCoordsConst { x: -38.0, y: 72.0, z: 0.0 },
+	MAHCoordsConst { x: -35.0, y: 36.0, z: 0.0 },
+	MAHCoordsConst { x: -40.0, y: 58.0, z: 0.0 },
 ];
 
 pub trait IoPort: std::io::Write + std::io::Read {
@@ -117,13 +117,8 @@ impl DriverAmplitudes {
 }
 
 impl GloveDriver {
-	pub fn get_possible_serial_ports() -> Vec<serialport::SerialPortInfo> {
-		let ports = serialport::available_ports().unwrap();
-		// could filter by p.port_type == SerialPortType::UsbPort
-		// for p in &ports {
-		// 	println!("serial port: {p:?}");
-		// }
-		ports
+	pub fn get_possible_serial_ports() -> std::io::Result<Vec<serialport::SerialPortInfo>> {
+		Ok(serialport::available_ports()?)
 	}
 
 	pub fn new(io_port: Box<dyn IoPort>, lra_layout: LRALayout) -> Self {
@@ -180,7 +175,7 @@ impl GloveDriver {
 
 		let begin_write = Instant::now();
 		self.io_port.write_all(&self.tx_buf)?;
-		println!("DEBUG: Sent packet: {:?}", &self.tx_buf);
+		// println!("DEBUG: Sent packet: {:?}", &self.tx_buf);
 
 		while !self.rx_buf[0..len_read].contains(&b'\n') { // read until newline
 			match self.io_port.read(&mut self.rx_buf[len_read..]) {
@@ -222,6 +217,10 @@ impl GloveDriver {
 	pub fn apply_batch(&mut self, brush_evals: &[pattern_evaluator::BrushAtAnimLocalTime]) -> std::io::Result<()> {
 		let driver_amplitudes = self.calc_driver_amplitudes_from_brush_evals(brush_evals);
 		self.set_driver_amplitudes(&driver_amplitudes)
+	}
+
+	pub fn stop_all(&mut self) -> std::io::Result<()> {
+		self.set_driver_amplitudes(&DriverAmplitudes([0; NUM_DRIVERS]))
 	}
 }
 

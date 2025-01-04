@@ -5,8 +5,8 @@ use pattern_evaluator::BrushAtAnimLocalTime;
 
 use crate::{threads::pattern::playback::PatternEvalCall, util::AdapticsError, DEBUG_LOG_LAG_EVENTS};
 
-// pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // if native sleep { still busy wait for ~1000ms, to avoid thread sleeping for too long }
-pub const USE_THREAD_SLEEP: Option<u64> = Some(500); // spin_sleeper still needs some buffer time (it shouldnt need any), but less than native. idk if it overtrusts the os sleep, or its some other slowdown?
+// pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // if native sleep { still busy wait for ~1000us, to avoid thread sleeping for too long }
+pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // spin_sleeper still needs some buffer time (it shouldnt need any). idk if it overtrusts the os sleep, or its some other slowdown?
 
 pub const SAMPLE_RATE: u64 = 1000; // 1000hz
 pub const CALLBACK_RATE: f64 = 100.0; // 100hz
@@ -19,8 +19,7 @@ pub enum DeviceType {
 	Auto,
 }
 
-#[must_use]
-pub fn get_possible_serial_ports() -> Vec<serialport::SerialPortInfo> {
+pub fn get_possible_serial_ports() -> std::io::Result<Vec<serialport::SerialPortInfo>> {
 	glovedriver::GloveDriver::get_possible_serial_ports()
 }
 
@@ -59,7 +58,7 @@ pub fn start_streaming_emitter(
 
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
-		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] elapsed > ecallback_tick_dur: {elapsed:?} > {ecallback_tick_dur:?}"); }
+		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] long sleep (elapsed > ecallback_tick_dur): {elapsed:?} > {ecallback_tick_dur:?}"); }
 		last_tick = curr_time;
 
 		let deadline_time = curr_time + deadline_offset;
@@ -73,7 +72,11 @@ pub fn start_streaming_emitter(
 
 		if patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).is_ok() {
 			let eval_arr = patteval_return_rx.recv()?;
-			gd.apply_batch(&eval_arr)?;
+			match eval_arr.first() {
+				None => {},
+				// Some(a) if a.stop => gd.stop_all()?,
+				Some(_) => gd.apply_batch(&eval_arr)?,
+			}
 		} else {
 			// patt eval thread exited (or panicked),
 			// end_streaming_rx will be called by main thread, could exit here anyway
@@ -84,7 +87,7 @@ pub fn start_streaming_emitter(
 		let deadline_remaining = deadline_time - Instant::now();
 		let deadline_missed_by = deadline_time.elapsed();
 		if deadline_remaining.is_zero() {
-			eprintln!("missed deadline by {deadline_missed_by:?}");
+			eprintln!("GloveDriver.apply_batch missed deadline by {deadline_missed_by:?}");
 		}
 	}
 
