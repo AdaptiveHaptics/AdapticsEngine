@@ -8,7 +8,7 @@ use crate::{threads::pattern::playback::PatternEvalCall, util::AdapticsError, DE
 // pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // if native sleep { still busy wait for ~1000us, to avoid thread sleeping for too long }
 pub const USE_THREAD_SLEEP: Option<u64> = Some(1000); // spin_sleeper still needs some buffer time (it shouldnt need any). idk if it overtrusts the os sleep, or its some other slowdown?
 
-pub const SAMPLE_RATE: u64 = 1000; // 1000hz
+pub const SAMPLE_RATE: u64 = 10000; // 10khz
 pub const CALLBACK_RATE: f64 = 100.0; // 100hz
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 pub const SAMPLES_PER_CALLBACK: usize = (SAMPLE_RATE as f64 / CALLBACK_RATE) as usize;

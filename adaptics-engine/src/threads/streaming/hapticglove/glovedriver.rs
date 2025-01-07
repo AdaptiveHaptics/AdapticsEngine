@@ -16,39 +16,105 @@ const ACK_PACKET: &[u8] = b"OKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOK
 const MAX_DIST: f64 = 30.0; // mm, distance from LRA where amp is 0%
 
 type LRALayout = [MAHCoordsConst; NUM_DRIVERS];
-pub const DEFAULT_LRA_LAYOUT: LRALayout = [ //left hand palm down
-	//palm top row
-	MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
-	MAHCoordsConst { x: -26.0, y: 0.0, z: 0.0 },
-	MAHCoordsConst { x: 28.0, y: 0.0, z: 0.0 },
+pub enum LRAPositions {
+	PalmTopCenter,
+	PalmTopLeft,
+	PalmTopRight,
 
-	//palm bottom row
-	MAHCoordsConst { x: 0.0, y: -39.0, z: 0.0 },
-	MAHCoordsConst { x: -26.0, y: -38.0, z: 0.0 },
-	MAHCoordsConst { x: 28.0, y: -37.0, z: 0.0 },
+	PalmBottomCenter,
+	PalmBottomLeft,
+	PalmBottomRight,
 
-	//wrist
-	MAHCoordsConst { x: -1.0, y: -74.0, z: 0.0 },
+	Wrist,
 
-	//thumb
-	MAHCoordsConst { x: 63.0, y: -7.0, z: 0.0 },
+	Thumb,
 
-	//index finger
-	MAHCoordsConst { x: 33.0, y: 36.0, z: 0.0 },
-	MAHCoordsConst { x: 36.0, y: 76.0, z: 0.0 },
+	IndexFingerBase,
+	IndexFingerTip,
 
-	//middle finger
-	MAHCoordsConst { x: 9.0, y: 44.0, z: 0.0 },
-	MAHCoordsConst { x: 11.0, y: 84.0, z: 0.0 },
+	MiddleFingerBase,
+	MiddleFingerTip,
 
-	//ring finger
-	MAHCoordsConst { x: -14.0, y: 41.0, z: 0.0 },
-	MAHCoordsConst { x: -16.0, y: 76.0, z: 0.0 },
+	RingFingerBase,
+	RingFingerTip,
 
-	//little finger
-	MAHCoordsConst { x: -35.0, y: 36.0, z: 0.0 },
-	MAHCoordsConst { x: -40.0, y: 58.0, z: 0.0 },
-];
+	LittleFingerBase,
+	LittleFingerTip,
+}
+impl LRAPositions {
+	pub const fn get_coords(&self) -> MAHCoordsConst {
+		match self {
+			LRAPositions::PalmTopCenter => MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
+			LRAPositions::PalmTopLeft => MAHCoordsConst { x: -26.0, y: 0.0, z: 0.0 },
+			LRAPositions::PalmTopRight => MAHCoordsConst { x: 28.0, y: 0.0, z: 0.0 },
+
+			LRAPositions::PalmBottomCenter => MAHCoordsConst { x: 0.0, y: -39.0, z: 0.0 },
+			LRAPositions::PalmBottomLeft => MAHCoordsConst { x: -26.0, y: -38.0, z: 0.0 },
+			LRAPositions::PalmBottomRight => MAHCoordsConst { x: 28.0, y: -37.0, z: 0.0 },
+
+			LRAPositions::Wrist => MAHCoordsConst { x: -1.0, y: -74.0, z: 0.0 },
+
+			LRAPositions::Thumb => MAHCoordsConst { x: 63.0, y: -7.0, z: 0.0 },
+
+			LRAPositions::IndexFingerBase => MAHCoordsConst { x: 33.0, y: 36.0, z: 0.0 },
+			LRAPositions::IndexFingerTip => MAHCoordsConst { x: 36.0, y: 76.0, z: 0.0 },
+
+			LRAPositions::MiddleFingerBase => MAHCoordsConst { x: 9.0, y: 44.0, z: 0.0 },
+			LRAPositions::MiddleFingerTip => MAHCoordsConst { x: 11.0, y: 84.0, z: 0.0 },
+
+			LRAPositions::RingFingerBase => MAHCoordsConst { x: -14.0, y: 41.0, z: 0.0 },
+			LRAPositions::RingFingerTip => MAHCoordsConst { x: -16.0, y: 76.0, z: 0.0 },
+
+			LRAPositions::LittleFingerBase => MAHCoordsConst { x: -35.0, y: 36.0, z: 0.0 },
+			LRAPositions::LittleFingerTip => MAHCoordsConst { x: -40.0, y: 58.0, z: 0.0 },
+		}
+	}
+	const EMPTY_LAYOUT: LRALayout = [
+		MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
+		MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
+		MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
+		MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 }, MAHCoordsConst { x: 0.0, y: 0.0, z: 0.0 },
+	];
+	pub const fn pos_to_coords(v: &[LRAPositions; NUM_DRIVERS]) -> LRALayout {
+		let mut out: LRALayout = Self::EMPTY_LAYOUT;
+		let mut i = 0;
+		while i < NUM_DRIVERS {
+			out[i] = v[i].get_coords();
+			i += 1;
+		}
+		out
+	}
+}
+impl From<LRAPositions> for MAHCoordsConst {
+	fn from(pos: LRAPositions) -> Self {
+		pos.get_coords()
+	}
+}
+pub const DEFAULT_LRA_LAYOUT: LRALayout = LRAPositions::pos_to_coords(&[ //left hand palm down
+	//CN1
+	LRAPositions::PalmTopCenter,
+	LRAPositions::PalmTopLeft,
+	LRAPositions::LittleFingerBase,
+	LRAPositions::LittleFingerTip,
+
+	//CN2 (mux flipped)
+	LRAPositions::PalmBottomCenter,
+	LRAPositions::PalmTopRight,
+	LRAPositions::IndexFingerBase,
+	LRAPositions::IndexFingerTip,
+
+	//CN3
+	LRAPositions::MiddleFingerBase,
+	LRAPositions::MiddleFingerTip,
+	LRAPositions::RingFingerTip,
+	LRAPositions::RingFingerBase,
+
+	//CN4 (mux flipped)
+	LRAPositions::Thumb,
+	LRAPositions::PalmBottomLeft,
+	LRAPositions::Wrist,
+	LRAPositions::PalmBottomRight,
+]);
 
 pub trait IoPort: std::io::Write + std::io::Read {
 	fn clear_rx_buf(&mut self) -> std::io::Result<()>;
@@ -164,6 +230,7 @@ impl GloveDriver {
 			let sym = self.tx_buf[i];
 			if sym == COBS_DELIM {
 				self.tx_buf[i] = u8::try_from(last_delim_dist).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Message too long for COBS")))?;
+				assert!(self.tx_buf[i] != COBS_DELIM, "COBS delim in message. Basically, message length cannot be longer than COBS_DELIM ({COBS_DELIM}). This should never occur in set_driver_amplitudes");
 				last_delim_dist = 1;
 			} else {
 				last_delim_dist += 1;
@@ -311,7 +378,7 @@ use super::*;
 
 		let image_size = 440;
 		let frame_rate = 100; // 100hz
-		let sample_rate = 1000; // 1000hz
+		let sample_rate = 10000; // 10khz
 		let num_frames = 550;
 
 		let mut image_buffer = ImageBuffer::new((image_size, image_size));
@@ -342,6 +409,8 @@ use super::*;
 
 
 		let pattern_evaluator = PatternEvaluator::new_from_json_string(r#"{"$DATA_FORMAT":"MidAirHapticsAnimationFileFormat","$REVISION":"0.1.0-alpha.3","name":"untitled","keyframes":[{"time":0,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":{"type":"f64","value":10},"am_freq":{"type":"f64","value":99},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":1}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-55,"y":-60,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]},{"time":1000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":{"type":"f64","value":10},"am_freq":{"type":"f64","value":0},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":1}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-55,"y":75,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]},{"time":2000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":{"type":"f64","value":10},"am_freq":{"type":"f64","value":0},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":1}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-5,"y":-60,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]},{"time":3000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":{"type":"f64","value":10},"am_freq":{"type":"f64","value":0},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":1}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":-5,"y":75,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]},{"time":4000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":{"type":"f64","value":10},"am_freq":{"type":"f64","value":0},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":1}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":45,"y":-60,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]},{"time":5000,"type":"standard","brush":{"brush":{"name":"circle","params":{"radius":{"type":"f64","value":10},"am_freq":{"type":"f64","value":0},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":1}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":45,"y":75,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]}],"pattern_transform":{"geometric_transforms":{"translate":{"x":{"type":"f64","value":0},"y":{"type":"f64","value":0},"z":{"type":"f64","value":200}},"rotation":{"type":"f64","value":0},"scale":{"x":{"type":"f64","value":1},"y":{"type":"f64","value":1},"z":{"type":"f64","value":1}}},"intensity_factor":{"type":"f64","value":1},"playback_speed":{"type":"f64","value":1}},"user_parameter_definitions":{}}"#).unwrap();
+		// let pattern_evaluator = PatternEvaluator::new_from_json_string(r#"{"$DATA_FORMAT":"MidAirHapticsAnimationFileFormat","$REVISION":"0.1.0-alpha.3","name":"untitled","keyframes":[{"time":0,"type":"standard","brush":{"brush":{"name":"line","params":{"length":{"type":"f64","value":30},"thickness":{"type":"f64","value":1},"rotation":{"type":"f64","value":0},"am_freq":{"type":"f64","value":0},"stm_freq":{"type":"f64","value":100}}},"transition":{"name":"linear","params":{}}},"intensity":{"intensity":{"name":"constant","params":{"value":{"type":"f64","value":0.3}}},"transition":{"name":"linear","params":{}}},"coords":{"coords":{"x":0,"y":-40,"z":0},"transition":{"name":"linear","params":{}}},"cjumps":[]}],"pattern_transform":{"geometric_transforms":{"translate":{"x":{"type":"f64","value":0},"y":{"type":"f64","value":0},"z":{"type":"f64","value":200}},"rotation":{"type":"f64","value":0},"scale":{"x":{"type":"f64","value":1},"y":{"type":"f64","value":1},"z":{"type":"f64","value":1}}},"intensity_factor":{"type":"f64","value":1},"playback_speed":{"type":"f64","value":1}},"user_parameter_definitions":{}}"#).unwrap();
+
 		let mut next_eval_params = Default::default();
 		let mut params: pattern_evaluator::PatternEvaluatorParameters = Default::default();
 
@@ -360,7 +429,7 @@ use super::*;
 			image_buffer.clear();
 
 			for be in &brush_evals {
-				image_buffer.render_brush_aa_mahcoords(&be.ul_control_point.coords, 10.0, &IBColor::new_hex(0x007eee));
+				image_buffer.render_brush_aa_mahcoords(&be.ul_control_point.coords, 10.0, &IBColor::new_hex(0x007eee).scale(0.1));
 			}
 
 			for i in 0..NUM_DRIVERS {
