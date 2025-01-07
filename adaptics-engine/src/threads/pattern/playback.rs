@@ -112,12 +112,15 @@ pub(crate) fn pattern_eval_loop(
 							if let Some(playstart) = pattern_playstart {
 								parameters.time = time.sub(playstart).as_nanos() as f64 / 1e6;
 							} //else reuse the last parameters.time
-							let eval = pattern_eval.eval_brush_at_anim_local_time(&parameters, &next_eval_params);
+							let mut eval = pattern_eval.eval_brush_at_anim_local_time(&parameters, &next_eval_params);
 							next_eval_params = eval.next_eval_params.clone();
 							if eval.stop && pattern_playstart.is_some() {
 								pattern_playstart = None;
 								send_stopping_updates = true; // continue sending until playback_update_buffer[0].stop == true is sent
 								// println!("send_stopping_updates = true @ {}", parameters.time);
+							}
+							if pattern_playstart.is_none() { // if playback stopped or paused, continue evals but force 0 intensity
+								eval.ul_control_point.intensity = 0.0;
 							}
 							eval
 						}).collect();

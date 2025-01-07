@@ -72,11 +72,7 @@ pub fn start_streaming_emitter(
 
 		if patteval_call_tx.send(PatternEvalCall::EvalBatch{ time_arr_instants }).is_ok() {
 			let eval_arr = patteval_return_rx.recv()?;
-			match eval_arr.first() {
-				None => {},
-				// Some(a) if a.stop => gd.stop_all()?,
-				Some(_) => gd.apply_batch(&eval_arr)?,
-			}
+			gd.apply_batch(&eval_arr)?;
 		} else {
 			// patt eval thread exited (or panicked),
 			// end_streaming_rx will be called by main thread, could exit here anyway
