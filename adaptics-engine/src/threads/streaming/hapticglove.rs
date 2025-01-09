@@ -58,7 +58,7 @@ pub fn start_streaming_emitter(
 
 		let curr_time = Instant::now();
 		let elapsed = curr_time - last_tick;
-		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_micros(100) { println!("[WARN] long sleep (elapsed > ecallback_tick_dur): {elapsed:?} > {ecallback_tick_dur:?}"); }
+		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_millis(1) { println!("[WARN] long sleep (elapsed > ecallback_tick_dur): {elapsed:?} > {ecallback_tick_dur:?}"); }
 		last_tick = curr_time;
 
 		let deadline_time = curr_time + deadline_offset;
@@ -80,9 +80,8 @@ pub fn start_streaming_emitter(
 		}
 
 		// both are needed because durations are always positive and subtraction saturates
-		let deadline_remaining = deadline_time - Instant::now();
 		let deadline_missed_by = deadline_time.elapsed();
-		if deadline_remaining.is_zero() {
+		if deadline_missed_by > Duration::from_micros(500) {
 			eprintln!("[WARN] GloveDriver.apply_batch missed deadline by {deadline_missed_by:?}");
 		}
 	}

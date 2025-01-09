@@ -251,8 +251,8 @@ impl GloveDriver {
 			}
 		}
 
-		let mut reset_flag = false;
-		let ack_buf = 'write_loop: loop {
+		let mut log_if_success = false;
+		'write_loop: loop {
 			let mut len_read = 0;
 			self.io_port.clear_rx_buf()?;
 
@@ -260,7 +260,8 @@ impl GloveDriver {
 			self.io_port.write_all(&self.tx_buf)?;
 			// println!("[DEBUG] Sent packet: {:?}", &self.tx_buf);
 
-			while !self.rx_buf[0..len_read].contains(&b'\n') { // read until newline
+
+			while !&self.rx_buf[0..len_read].contains(&b'\n') { // read until newline
 				match self.io_port.read(&mut self.rx_buf[len_read..]) {
 					Ok(n) => len_read += n,
 					Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => { std::thread::sleep(Duration::from_millis(1)); },
@@ -271,7 +272,7 @@ impl GloveDriver {
 							eprintln!("[WARN] Too many timeouts. Resetting device...");
 							self.io_port.reset_device()?;
 							eprintln!("[WARN] Device reset. Sleeping for 5s...");
-							reset_flag = true;
+							log_if_success = true;
 							std::thread::sleep(Duration::from_millis(5000));
 							self.timeout_count = 0;
 						}
@@ -279,25 +280,32 @@ impl GloveDriver {
 					},
 					Err(ref e) if e.raw_os_error() == Some(1784) => {
 						eprintln!("[WARN] {e:?}. Device probably resetting? Sleeping for 5s...");
-						reset_flag = true;
+						log_if_success = true;
 						std::thread::sleep(Duration::from_millis(5000));
 						continue 'write_loop;
 					},
 					Err(e) => return Err(e)?,
 				}
 			}
-			if reset_flag { println!("[INFO] Device reset successful"); }
+			if log_if_success { println!("[INFO] Device reset successful"); }
 			if DEBUG_LOG_SERIAL_RTT { println!("[DEBUG] RTT: {:?}", begin_write.elapsed()); }
 
-			break &self.rx_buf[0..len_read];
+
+			let ack_buf = &self.rx_buf[0..len_read];
+
+			if ack_buf != ACK_PACKET {
+				let response = std::str::from_utf8(ack_buf).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Response not UTF-8")))?;
+				if response.starts_with("INIT: ") {
+					eprintln!("[WARN] Device still initializing. Sleeping for 5s...");
+					log_if_success = true;
+					std::thread::sleep(Duration::from_millis(5000));
+					continue 'write_loop;
+				}
+				return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("unexpected device response: {response:?}")))?;
+			}
+
+			return Ok(());
 		};
-
-		if !self.rx_buf.starts_with(ACK_PACKET) {
-			let response = std::str::from_utf8(ack_buf).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Response not UTF-8")))?;
-			return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("unexpected device response: {response:?}")))?;
-		}
-
-		Ok(())
 	}
 
 	pub fn calc_driver_amplitudes_from_brush_evals(&self, brush_evals: &[pattern_evaluator::BrushAtAnimLocalTime]) -> DriverAmplitudes {
