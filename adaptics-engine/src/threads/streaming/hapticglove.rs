@@ -83,7 +83,7 @@ pub fn start_streaming_emitter(
 		let deadline_remaining = deadline_time - Instant::now();
 		let deadline_missed_by = deadline_time.elapsed();
 		if deadline_remaining.is_zero() {
-			eprintln!("GloveDriver.apply_batch missed deadline by {deadline_missed_by:?}");
+			eprintln!("[WARN] GloveDriver.apply_batch missed deadline by {deadline_missed_by:?}");
 		}
 	}
 

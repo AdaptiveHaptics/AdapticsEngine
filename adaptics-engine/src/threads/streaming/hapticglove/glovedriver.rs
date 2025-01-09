@@ -4,7 +4,7 @@ use std::{cell::Cell, time::{Duration, Instant}};
 use pattern_evaluator::MAHCoordsConst;
 use serialport::{self, SerialPort};
 
-use crate::DEBUG_LOG_SERIAL_RTT;
+use crate::{AdapticsError, DEBUG_LOG_SERIAL_RTT};
 
 const NUM_DRIVERS: usize = 16;
 const COBS_DELIM: u8 = 0x88; // using unlikely byte as delim
@@ -14,6 +14,8 @@ const PACKET_LEN: usize = HEADER_LEN + NUM_DRIVERS + FOOTER_LEN;
 const ACK_PACKET: &[u8] = b"OKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOK\r\n";
 
 const MAX_DIST: f64 = 30.0; // mm, distance from LRA where amp is 0%
+
+const MAX_NUM_TIMEOUTS_BEFORE_RESET: usize = 4;
 
 type LRALayout = [MAHCoordsConst; NUM_DRIVERS];
 pub enum LRAPositions {
@@ -118,10 +120,17 @@ pub const DEFAULT_LRA_LAYOUT: LRALayout = LRAPositions::pos_to_coords(&[ //left 
 
 pub trait IoPort: std::io::Write + std::io::Read {
 	fn clear_rx_buf(&mut self) -> std::io::Result<()>;
+	fn reset_device(&mut self) -> std::io::Result<()>;
 }
-impl<T: AsRef<dyn SerialPort> + std::io::Write + std::io::Read> IoPort for T {
+impl<T: AsMut<dyn SerialPort> + std::io::Write + std::io::Read> IoPort for T {
 	fn clear_rx_buf(&mut self) -> std::io::Result<()> {
-		Ok(self.as_ref().clear(serialport::ClearBuffer::Input)?)
+		Ok(self.as_mut().clear(serialport::ClearBuffer::Input)?)
+	}
+	fn reset_device(&mut self) -> std::io::Result<()> {
+		self.as_mut().write_data_terminal_ready(false)?;
+		std::thread::sleep(Duration::from_millis(500));
+		self.as_mut().write_data_terminal_ready(true)?;
+		Ok(())
 	}
 }
 
@@ -167,6 +176,7 @@ impl std::io::Read for MockIO {
 }
 impl IoPort for MockIO {
 	fn clear_rx_buf(&mut self) -> std::io::Result<()> { Ok(()) }
+	fn reset_device(&mut self) -> std::io::Result<()> { Ok(()) }
 }
 
 pub struct GloveDriver {
@@ -174,6 +184,7 @@ pub struct GloveDriver {
 	tx_buf: Vec<u8>,
 	rx_buf: Vec<u8>,
 	lra_layout: LRALayout,
+	timeout_count: usize,
 }
 pub struct DriverAmplitudes([u8; NUM_DRIVERS]);
 impl DriverAmplitudes {
@@ -192,17 +203,20 @@ impl GloveDriver {
 			io_port,
 			tx_buf: Vec::with_capacity(PACKET_LEN),
 			rx_buf: vec![0; 256],
-			lra_layout
+			lra_layout,
+			timeout_count: 0,
 		}
 	}
 	pub fn new_mock(lra_layout: LRALayout) -> Self {
 		GloveDriver::new(Box::new(MockIO::default()), lra_layout)
 	}
 	pub fn new_for_serial_port(port: &str, lra_layout: LRALayout) -> std::io::Result<Self> {
-		let s_port = serialport::new(port, 115_200)
+		let mut s_port = serialport::new(port, 115_200)
 			.timeout(Duration::from_millis(100))
 			.baud_rate(921_600)
 			.open()?;
+		s_port.write_data_terminal_ready(true)?;
+		s_port.write_request_to_send(true)?;
 		let io_port: Box<dyn IoPort> = Box::new(s_port);
 		Ok(GloveDriver::new(io_port, lra_layout))
 	}
@@ -210,7 +224,7 @@ impl GloveDriver {
 		let ports = serialport::available_ports()?;
 		match ports.iter().find(|p| matches!(p.port_type, serialport::SerialPortType::UsbPort(_))) {
 			Some(p) => {
-				println!("INFO: Auto-detected serial port: {p:?}");
+				println!("[INFO] Auto-detected serial port: {p:?}");
 				GloveDriver::new_for_serial_port(&p.port_name, lra_layout)
 			},
 			None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No serial ports found"))
@@ -218,7 +232,7 @@ impl GloveDriver {
 	}
 
 
-	pub fn set_driver_amplitudes(&mut self, driver_amplitudes: &DriverAmplitudes) -> std::io::Result<()> {
+	pub fn set_driver_amplitudes(&mut self, driver_amplitudes: &DriverAmplitudes) -> Result<(), AdapticsError> {
 		self.tx_buf.clear();
 		self.tx_buf.push(COBS_DELIM);
 		self.tx_buf.extend_from_slice(driver_amplitudes.get_slice());
@@ -237,26 +251,50 @@ impl GloveDriver {
 			}
 		}
 
-		let mut len_read = 0;
-		self.io_port.clear_rx_buf()?;
+		let mut reset_flag = false;
+		let ack_buf = 'write_loop: loop {
+			let mut len_read = 0;
+			self.io_port.clear_rx_buf()?;
 
-		let begin_write = Instant::now();
-		self.io_port.write_all(&self.tx_buf)?;
-		// println!("DEBUG: Sent packet: {:?}", &self.tx_buf);
+			let begin_write = Instant::now();
+			self.io_port.write_all(&self.tx_buf)?;
+			// println!("[DEBUG] Sent packet: {:?}", &self.tx_buf);
 
-		while !self.rx_buf[0..len_read].contains(&b'\n') { // read until newline
-			match self.io_port.read(&mut self.rx_buf[len_read..]) {
-				Ok(n) => len_read += n,
-				Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => { std::thread::sleep(Duration::from_millis(1)); },
-				Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => { eprintln!("WARN: Timed out reading from haptic glove device"); continue; },
-				Err(e) => return Err(e),
+			while !self.rx_buf[0..len_read].contains(&b'\n') { // read until newline
+				match self.io_port.read(&mut self.rx_buf[len_read..]) {
+					Ok(n) => len_read += n,
+					Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => { std::thread::sleep(Duration::from_millis(1)); },
+					Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+						eprintln!("[WARN] Timed out reading from haptic glove device");
+						self.timeout_count += 1;
+						if self.timeout_count >= MAX_NUM_TIMEOUTS_BEFORE_RESET {
+							eprintln!("[WARN] Too many timeouts. Resetting device...");
+							self.io_port.reset_device()?;
+							eprintln!("[WARN] Device reset. Sleeping for 5s...");
+							reset_flag = true;
+							std::thread::sleep(Duration::from_millis(5000));
+							self.timeout_count = 0;
+						}
+						continue 'write_loop;
+					},
+					Err(ref e) if e.raw_os_error() == Some(1784) => {
+						eprintln!("[WARN] {e:?}. Device probably resetting? Sleeping for 5s...");
+						reset_flag = true;
+						std::thread::sleep(Duration::from_millis(5000));
+						continue 'write_loop;
+					},
+					Err(e) => return Err(e)?,
+				}
 			}
-		}
-		if DEBUG_LOG_SERIAL_RTT { println!("DEBUG: RTT: {:?}", begin_write.elapsed()); }
+			if reset_flag { println!("[INFO] Device reset successful"); }
+			if DEBUG_LOG_SERIAL_RTT { println!("[DEBUG] RTT: {:?}", begin_write.elapsed()); }
+
+			break &self.rx_buf[0..len_read];
+		};
 
 		if !self.rx_buf.starts_with(ACK_PACKET) {
-			let response = std::str::from_utf8(&self.rx_buf[0..len_read]).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Response not UTF-8")))?;
-			return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("unexpected device response: {response:?}")));
+			let response = std::str::from_utf8(ack_buf).or(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Response not UTF-8")))?;
+			return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("unexpected device response: {response:?}")))?;
 		}
 
 		Ok(())
@@ -281,12 +319,12 @@ impl GloveDriver {
 		DriverAmplitudes(driver_amplitudes)
 	}
 
-	pub fn apply_batch(&mut self, brush_evals: &[pattern_evaluator::BrushAtAnimLocalTime]) -> std::io::Result<()> {
+	pub fn apply_batch(&mut self, brush_evals: &[pattern_evaluator::BrushAtAnimLocalTime]) -> Result<(), AdapticsError> {
 		let driver_amplitudes = self.calc_driver_amplitudes_from_brush_evals(brush_evals);
 		self.set_driver_amplitudes(&driver_amplitudes)
 	}
 
-	pub fn stop_all(&mut self) -> std::io::Result<()> {
+	pub fn stop_all(&mut self) -> Result<(), AdapticsError> {
 		self.set_driver_amplitudes(&DriverAmplitudes([0; NUM_DRIVERS]))
 	}
 }
