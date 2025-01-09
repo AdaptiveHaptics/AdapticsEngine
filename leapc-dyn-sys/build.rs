@@ -2,15 +2,8 @@ use std::path::PathBuf;
 
 const LEAP_HEADER_PATH: &str = "C:/Program Files/Ultraleap/LeapSDK/include";
 
-const LIBCLANG_PATH: &str = "C:/Program Files/LLVM/bin/";
-
 fn main() {
     let out_dir = PathBuf::from(&std::env::var("OUT_DIR").unwrap());
-
-    if std::env::var_os("LIBCLANG_PATH").is_none() {
-        std::env::set_var("LIBCLANG_PATH", LIBCLANG_PATH); // force bindgen to use explicitly installed LLVM instead of the oldest visual studio LLVM (see https://github.com/KyleMayes/clang-sys/issues/152)
-    }
-
 
     //*********              build LeapC bindings              *********//
     let bindings = bindgen::Builder::default()
