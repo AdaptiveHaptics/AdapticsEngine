@@ -52,14 +52,16 @@ pub fn start_streaming_emitter(
 		// if let Some(bwt) = USE_THREAD_SLEEP { std::thread::sleep(next_tick_at - Instant::now() - Duration::from_micros(bwt)); } // supports windows high resolution sleep since rust 1.75
 		// spin_sleeper.sleep(next_tick_at - Instant::now()); // not accurate enough by itself on windows
 		let sleep_time = next_tick_at.saturating_duration_since(Instant::now());
-		if let Some(bwt) = USE_THREAD_SLEEP { if sleep_time > bwt { spin_sleeper.sleep(sleep_time.saturating_sub(bwt)); } } // shouldnt need bwt but it does
-		while next_tick_at > Instant::now() {} // busy wait remaining time
+		let curr_time = if sleep_time.is_zero() { Instant::now() } else { // if zero we drop a (partial) "frame", so we emit now and then continue with normal intervals, even if we could actually catch up.
+			if let Some(bwt) = USE_THREAD_SLEEP { if sleep_time > bwt { spin_sleeper.sleep(sleep_time.saturating_sub(bwt)); } } // shouldnt need bwt but it does
+			while next_tick_at > Instant::now() {} // busy wait remaining time
 
-
-		let curr_time = Instant::now();
-		let elapsed = curr_time - last_tick;
-		if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_millis(1) { println!("[WARN] long sleep (elapsed > ecallback_tick_dur): {elapsed:?} > {ecallback_tick_dur:?}"); }
-		last_tick = curr_time;
+			let curr_time = Instant::now();
+			let elapsed = curr_time - last_tick;
+			if DEBUG_LOG_LAG_EVENTS && elapsed > ecallback_tick_dur + Duration::from_millis(1) { println!("[WARN] long sleep (elapsed > ecallback_tick_dur): {elapsed:?} > {ecallback_tick_dur:?}"); }
+			curr_time
+		};
+		last_tick = curr_time; // i need to redo this whole thing at some point, probably use media timers or smth anyway
 
 		let deadline_time = curr_time + deadline_offset;
 
