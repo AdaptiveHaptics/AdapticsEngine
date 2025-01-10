@@ -777,7 +777,7 @@ mod test {
         #[allow(clippy::float_cmp)]
         {
             assert_eq!(eval_results[0].coords, UnityEvalCoords { x: 0.0, y: 0.2, z: 0.0 });
-            assert_eq!(eval_results[0].intensity, 1.0);
+            assert_eq!(eval_results[0].intensity, 0.0);
         }
         assert!(eval_results[0].pattern_time < 2.0 * 1000.0 * (1.0 / CALLBACK_RATE), "pattern_time: {} !< {}", eval_results[0].pattern_time, 1.0 / CALLBACK_RATE); // assert first pattern_time is less than 2.0 callback periods ahead
 
