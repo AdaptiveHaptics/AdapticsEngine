@@ -42,6 +42,7 @@ typedef enum adaptics_engine_ffi_error
     ADAPTICS_ENGINE_FFI_ERROR_INTEROPUNKERROR = 15,
     ADAPTICS_ENGINE_FFI_ERROR_TIMEERROR = 16,
     ADAPTICS_ENGINE_FFI_ERROR_CASTERROR = 17,
+    ADAPTICS_ENGINE_FFI_ERROR_ADAPTICSERROR = 18,
     } adaptics_engine_ffi_error;
 
 /// !NOTE: y and z are swapped for Unity

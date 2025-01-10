@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adaptics-engine"
-version = "0.6.4"
+version = "0.7.0-alpha.1"
 dependencies = [
  "adaptics-pattern-evaluator",
  "base64",
@@ -27,7 +27,7 @@ dependencies = [
 
 [[package]]
 name = "adaptics-pattern-evaluator"
-version = "0.6.4"
+version = "0.7.0-alpha.1"
 dependencies = [
  "getrandom",
  "rand",
