@@ -456,22 +456,22 @@ impl PatternEvaluator {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+#[wasm_bindgen]
 impl PatternEvaluator {
     pub fn try_parse_into_latest_version(mah_animation_json: &str) -> Result<String, JsError> {
         Ok(try_parse_into_latest_version(mah_animation_json)?)
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
+    #[wasm_bindgen(constructor)]
     pub fn new_json(mah_animation_json: &str) -> Result<PatternEvaluator, JsError> {
         Ok(Self::new_from_json_string(mah_animation_json)?)
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time))]
+    #[wasm_bindgen(js_name = eval_brush_at_anim_local_time)]
     pub fn eval_brush_at_anim_local_time_json(&self, p: &str, nep: &str) -> String {
         serde_json::to_string::<BrushAtAnimLocalTime>(&self.eval_brush_at_anim_local_time(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap(), &serde_json::from_str::<NextEvalParams>(nep).unwrap())).unwrap()
     }
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = eval_brush_at_anim_local_time_for_max_t))]
+    #[wasm_bindgen(js_name = eval_brush_at_anim_local_time_for_max_t)]
     pub fn eval_brush_at_anim_local_time_for_max_t_json(&self, p: &str, nep: &str) -> String {
         serde_json::to_string::<Vec<BrushAtAnimLocalTime>>(&self.eval_brush_at_anim_local_time_for_max_t(&serde_json::from_str::<PatternEvaluatorParameters>(p).unwrap(), &serde_json::from_str::<NextEvalParams>(nep).unwrap())).unwrap()
     }
