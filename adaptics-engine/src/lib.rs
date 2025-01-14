@@ -269,6 +269,7 @@ pub enum FFIError {
     TimeError = 16,
     CastError = 17,
     AdapticsError = 18,
+    ErrMsgBufferNull = 19,
 }
 // Gives special meaning to some of your error variants.
 impl interoptopus::patterns::result::FFIError for FFIError {
@@ -300,6 +301,7 @@ impl FFIError {
             FFIError::TimeError => "Error getting or using system time.",
             FFIError::CastError => "Error casting between types (e.g. from usize to u32).",
             FFIError::AdapticsError => "An error occurred. Further error information could not be marshalled but may be available with debug builds.",
+            FFIError::ErrMsgBufferNull => "Error message buffer had no length.",
         }
     }
 }
@@ -509,6 +511,7 @@ impl FFIHandle {
             Ok(Ok(())) => Ok(()),
             Ok(Err(res_err)) => {
                 let err_msg_rv_slice = err_msg.as_slice_mut();
+                if err_msg_rv_slice.is_empty() { return Err(FFIError::ErrMsgBufferNull); }
                 let res_err_str_bytes = res_err.to_string().into_bytes();
                 // copy as many bytes of res_err_str_bytes as possible into err_msg_rv_slice
                 let bytes_to_copy = std::cmp::min(err_msg_rv_slice.len() - 1, res_err_str_bytes.len());

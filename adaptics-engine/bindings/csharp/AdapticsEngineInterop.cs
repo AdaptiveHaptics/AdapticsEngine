@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 5922060110731194103ul)
+            if (api_version != 13955224893624231911ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (5922060110731194103). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (13955224893624231911). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -421,6 +421,7 @@ namespace com.github.AdaptiveHaptics
         TimeError = 16,
         CastError = 17,
         AdapticsError = 18,
+        ErrMsgBufferNull = 19,
     }
 
     ///A pointer to an array of data someone else owns which may be modified.
