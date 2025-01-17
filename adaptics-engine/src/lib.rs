@@ -129,28 +129,7 @@ fn create_threads(
         })
         .unwrap();
 
-    let ulh_streaming_handle =  if let Some(vg_device) = vib_grid {
-        thread::Builder::new()
-            .name("vib-grid".to_string())
-            .spawn(move || -> Result<(), AdapticsError> {
-                println!("vib-grid thread starting...");
-                streaming::hapticglove::start_streaming_emitter(&vg_device, &patteval_call_tx, &patteval_return_rx, &end_streaming_rx)
-            })?
-    } else if !use_mock_streaming {
-        thread::Builder::new()
-            .name("ulh-streaming".to_string())
-            .spawn(move || -> Result<(), AdapticsError> {
-                println!("ulhaptics streaming thread starting...");
-
-                #[allow(clippy::cast_possible_truncation)]
-                streaming::ulhaptics::start_streaming_emitter(
-                    CALLBACK_RATE as f32,
-                    patteval_call_tx,
-                    patteval_return_rx,
-                    &end_streaming_rx,
-                )
-            })?
-    } else {
+    let ulh_streaming_handle =  if use_mock_streaming {
         println!("using mock streaming");
         thread::Builder::new()
             .name("mock-streaming".to_string())
@@ -167,6 +146,27 @@ fn create_threads(
 
                 // println!("mock streaming thread exiting...");
                 Ok(())
+            })?
+    } else if let Some(vg_device) = vib_grid {
+        thread::Builder::new()
+            .name("vib-grid".to_string())
+            .spawn(move || -> Result<(), AdapticsError> {
+                println!("vib-grid thread starting...");
+                streaming::hapticglove::start_streaming_emitter(&vg_device, &patteval_call_tx, &patteval_return_rx, &end_streaming_rx)
+            })?
+    } else {
+        thread::Builder::new()
+            .name("ulh-streaming".to_string())
+            .spawn(move || -> Result<(), AdapticsError> {
+                println!("ulhaptics streaming thread starting...");
+
+                #[allow(clippy::cast_possible_truncation)]
+                streaming::ulhaptics::start_streaming_emitter(
+                    CALLBACK_RATE as f32,
+                    patteval_call_tx,
+                    patteval_return_rx,
+                    &end_streaming_rx,
+                )
             })?
     };
 
