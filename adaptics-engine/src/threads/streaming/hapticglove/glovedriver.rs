@@ -222,7 +222,7 @@ impl GloveDriver {
 	}
 	pub fn new_with_auto_serial_port(lra_layout: LRALayout) -> std::io::Result<Self> {
 		let ports = serialport::available_ports()?;
-		match ports.iter().find(|p| matches!(p.port_type, serialport::SerialPortType::UsbPort(_))) {
+		match ports.iter().find(|p| matches!(p.port_type, serialport::SerialPortType::UsbPort(serialport::UsbPortInfo { vid: 4292, pid: 60000, .. }))) { // Silicon Labs CP210x USB to UART Bridge
 			Some(p) => {
 				println!("[INFO] Auto-detected serial port: {p:?}");
 				GloveDriver::new_for_serial_port(&p.port_name, lra_layout)

@@ -628,6 +628,7 @@ impl FFIHandle {
                     Ok(AdapticsWSServerMessage::PlaybackUpdate { evals }) => {
                         // copy as many evals as possible into eval_results
                         let eval_results_slice = eval_results.as_slice_mut();
+                        if eval_results_slice.is_empty() { return Err(FFIError::NullPassed); }
                         let evalresults_to_copy = std::cmp::min(eval_results_slice.len(), evals.len());
                         evals.into_iter().take(evalresults_to_copy).enumerate().for_each(|(i, be)| eval_results_slice[i] = be.into());
                         *num_evals = u32::try_from(evalresults_to_copy)?;
