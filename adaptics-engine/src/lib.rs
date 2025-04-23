@@ -79,7 +79,7 @@ const CALLBACK_RATE: f64 = 500.0;
 const DEVICE_UPDATE_RATE: u64 = 20000; //20khz
 const SEND_UNTRACKED_PLAYBACK_UPDATES: bool = false;
 
-const DEBUG_LOG_LAG_EVENTS: bool = true;
+const DEBUG_LOG_LAG_EVENTS: bool = false;
 const DEBUG_LOG_SERIAL_RTT: bool = false;
 
 
@@ -364,10 +364,12 @@ impl From<AdapticsError> for FFIError {
 pub struct AdapticsEngineHandleFFI {
     last_error_msg: Option<String>,
     aeh: AdapticsEngineHandle,
+    lmc_tracking_handle: Option<thread::JoinHandle<Result<(), AdapticsError>>>,
+    end_tracking_tx: crossbeam_channel::Sender<()>,
 }
 impl AdapticsEngineHandleFFI {
-    fn new(aeh: AdapticsEngineHandle) -> Self {
-        Self { aeh, last_error_msg: None, }
+    fn new(aeh: AdapticsEngineHandle, lmc_tracking_handle: Option<thread::JoinHandle<Result<(), AdapticsError>>>, end_tracking_tx: crossbeam_channel::Sender<()>) -> Self {
+        Self { aeh, last_error_msg: None, lmc_tracking_handle, end_tracking_tx }
     }
 }
 
@@ -467,7 +469,7 @@ impl FFIHandle {
     /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
     ///
     #[ffi_service_ctor]
-    pub fn init_experimental(use_mock_streaming: bool, enable_playback_updates: bool, vib_grid: AsciiPointer) -> Result<Self, FFIError> {
+    pub fn init_experimental(use_mock_streaming: bool, enable_playback_updates: bool, vib_grid: AsciiPointer, enable_ultraleap_tracking: bool) -> Result<Self, FFIError> {
         let vg = match vib_grid.as_str() {
             Ok("") | Err(interoptopus::Error::Null) => None,
             Ok("auto") => Some(hapticglove::DeviceType::Auto),
@@ -476,8 +478,27 @@ impl FFIHandle {
             Err(interoptopus::Error::UTF8(_)) => { return Err(FFIError::ParamUTF8Error) },
             Err(e) => { eprintln!("WARN(AdapticsEngine): unexpected error {e}"); None }, //unreachable!(),
         };
-        let aeh = create_threads(use_mock_streaming, !enable_playback_updates, vg, None)?;
-        let ffi_handle = AdapticsEngineHandleFFI::new(aeh);
+
+        let (tracking_data_tx, tracking_data_rx) = if enable_ultraleap_tracking { let (s, r) = crossbeam_channel::bounded(1); (Some(s), Some(r)) } else { (None, None) };
+        let (end_tracking_tx, end_tracking_rx) = crossbeam_channel::bounded(1);
+        let lmc_tracking_handle = if let Some(tracking_data_tx) = tracking_data_tx {
+            let thread = thread::Builder::new()
+                .name("lmc-tracking".to_string())
+                .spawn(move || -> Result<(), AdapticsError> {
+                    println!("tracking thread starting...");
+                    tracking::leapmotion::start_tracking_loop(tracking_data_tx, None, &end_tracking_rx)
+                }).map_err(|e| {
+                    eprintln!("[ERROR] lmc-tracking thread panicked: {e}");
+                    FFIError::Panic
+                })?;
+            Some(thread)
+        } else { None };
+
+        let aeh = create_threads(use_mock_streaming, !enable_playback_updates, vg, tracking_data_rx)?;
+        let ffi_handle = AdapticsEngineHandleFFI::new(aeh, lmc_tracking_handle, end_tracking_tx);
+
+        ffi_handle.aeh.patteval_update_tx.send(PatternEvalUpdate::Tracking { enabled: enable_ultraleap_tracking })?;
+
         // get map or create new map
         let mut map = ENGINE_HANDLE_MAP.write().or(Err(FFIError::MutexPoisoned))?;
         let map = map.get_or_insert_with(HashMap::new);
@@ -494,7 +515,7 @@ impl FFIHandle {
     ///
     #[ffi_service_ctor]
     pub fn init(use_mock_streaming: bool, enable_playback_updates: bool) -> Result<Self, FFIError> {
-        Self::init_experimental(use_mock_streaming, enable_playback_updates, AsciiPointer::empty())
+        Self::init_experimental(use_mock_streaming, enable_playback_updates, AsciiPointer::empty(), false)
     }
 
     /// Deinitializes the Adaptics Engine.
@@ -505,8 +526,22 @@ impl FFIHandle {
         let mut rwlg = ENGINE_HANDLE_MAP.write().or(Err(FFIError::MutexPoisoned))?;
         let map = rwlg.as_mut().ok_or(FFIError::HandleIDNotFound)?;
         let handle = map.remove(&self.handle_id).ok_or(FFIError::HandleIDNotFound)?;
+
+        handle.end_tracking_tx.send(()).ok(); // ignore send error (if thread already exited)
+        if let Some(lmc_handle) = handle.lmc_tracking_handle {
+            lmc_handle.join().map_err(|e| {
+                eprintln!("[ERROR] lmc-tracking thread panicked: {e:?}");
+                FFIError::Panic
+            })?.map_err(|e| {
+                eprintln!("[ERROR] lmc-tracking thread error: {e:?}");
+                FFIError::AdapticsError
+            })?;
+        }
         handle.aeh.end_streaming_tx.send(()).ok(); // ignore send error (if thread already exited)
-        if handle.aeh.pattern_eval_handle.join().is_err() { return Err(FFIError::Panic); }
+        if let Err(e) = handle.aeh.pattern_eval_handle.join() {
+            eprintln!("[ERROR] pattern-eval thread panicked: {e:?}");
+            return Err(FFIError::Panic);
+        }
         match handle.aeh.ulh_streaming_handle.join() {
             Ok(Ok(())) => Ok(()),
             Ok(Err(res_err)) => {

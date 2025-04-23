@@ -1,7 +1,7 @@
 set -ex
 
 if ! grep -q 'name = "adaptics-engine"' Cargo.toml; then
-	echo "This script must be run from the "subroot" for the mah-driver-server package"
+	echo "This script must be run from the "subroot" for the adaptics-engine package"
 	exit 1
 fi
 

@@ -17,9 +17,9 @@ namespace com.github.AdaptiveHaptics
         static AdapticsEngineInterop()
         {
             var api_version = AdapticsEngineInterop.ffi_api_guard();
-            if (api_version != 13955224893624231911ul)
+            if (api_version != 11963767314292576480ul)
             {
-                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (13955224893624231911). You probably forgot to update / copy either the bindings or the library.");
+                throw new TypeLoadException($"API reports hash {api_version} which differs from hash in bindings (11963767314292576480). You probably forgot to update / copy either the bindings or the library.");
             }
         }
 
@@ -58,7 +58,7 @@ namespace com.github.AdaptiveHaptics
         /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
         ///
         [DllImport(NativeLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "adaptics_engine_init_experimental")]
-        public static extern FFIError adaptics_engine_init_experimental(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates, string vib_grid);
+        public static extern FFIError adaptics_engine_init_experimental(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates, string vib_grid, bool enable_ultraleap_tracking);
 
         /// Initializes the Adaptics Engine, returns a handle ID.
         ///
@@ -69,9 +69,9 @@ namespace com.github.AdaptiveHaptics
         /// `vib_grid`: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
         /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
         ///
-        public static void adaptics_engine_init_experimental_checked(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates, string vib_grid)
+        public static void adaptics_engine_init_experimental_checked(ref IntPtr context, bool use_mock_streaming, bool enable_playback_updates, string vib_grid, bool enable_ultraleap_tracking)
         {
-            var rval = adaptics_engine_init_experimental(ref context, use_mock_streaming, enable_playback_updates, vib_grid);;
+            var rval = adaptics_engine_init_experimental(ref context, use_mock_streaming, enable_playback_updates, vib_grid, enable_ultraleap_tracking);;
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);
@@ -572,10 +572,10 @@ namespace com.github.AdaptiveHaptics
         /// `vib_grid`: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
         /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
         ///
-        public static FFIHandle InitExperimental(bool use_mock_streaming, bool enable_playback_updates, string vib_grid)
+        public static FFIHandle InitExperimental(bool use_mock_streaming, bool enable_playback_updates, string vib_grid, bool enable_ultraleap_tracking)
         {
             var self = new FFIHandle();
-            var rval = AdapticsEngineInterop.adaptics_engine_init_experimental(ref self._context, use_mock_streaming, enable_playback_updates, vib_grid);
+            var rval = AdapticsEngineInterop.adaptics_engine_init_experimental(ref self._context, use_mock_streaming, enable_playback_updates, vib_grid, enable_ultraleap_tracking);
             if (rval != FFIError.Ok)
             {
                 throw new InteropException<FFIError>(rval);

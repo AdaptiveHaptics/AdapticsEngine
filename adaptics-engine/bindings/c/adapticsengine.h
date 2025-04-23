@@ -106,7 +106,7 @@ ADAPTICS_EXPORT adaptics_engine_ffi_error adaptics_engine_destroy(adaptics_engin
 /// `vib_grid`: Alpha feature: Output to a vibrotactile grid device (e.g. a vest or glove) instead of a mid-air ultrasound haptic device.
 /// If len is 0, the vibrotactile grid feature is disabled. If "auto", the device will attempt to auto-detect the device.
 ///
-ADAPTICS_EXPORT adaptics_engine_ffi_error adaptics_engine_init_experimental(adaptics_engine_ffi_handle** context, bool use_mock_streaming, bool enable_playback_updates, const char* vib_grid);
+ADAPTICS_EXPORT adaptics_engine_ffi_error adaptics_engine_init_experimental(adaptics_engine_ffi_handle** context, bool use_mock_streaming, bool enable_playback_updates, const char* vib_grid, bool enable_ultraleap_tracking);
 
 /// Initializes the Adaptics Engine, returns a handle ID.
 ///
