@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
 jobs:
   build:
     timeout-minutes: 60
@@ -52,7 +56,7 @@ jobs:
           echo "version_changes=${VERSION_CHANGES}" >> $GITHUB_OUTPUT
 
       - name: Publish new version
-        if: steps.version_changes.outputs.version_changes == '1'
+        if: github.event_name == 'push' && steps.version_changes.outputs.version_changes == '1'
         run: |
           cd adaptics-pattern-evaluator
           npm publish ./pkg/adaptics-pattern-evaluator-*.tgz --access public
